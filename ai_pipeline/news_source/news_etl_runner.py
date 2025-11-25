@@ -10,9 +10,9 @@ from ai_pipeline.news_source.news_article_crawler import extract_real_article_ur
 from ai_pipeline.nlp.text_splitter import split_text
 from ai_pipeline.nlp.sentiment import analyze_sentiment
 from ai_pipeline.news_etl.es_uploader import save_news_to_es
+from ai_pipeline.mapping.stock_mapping import get_stock_mentions
 
 def run_finance_news_etl():
-
     print("🔥 ETL 시작됨")
 
     news_urls = fetch_finance_news_list()
@@ -21,8 +21,6 @@ def run_finance_news_etl():
     if len(news_urls) == 0:
         print("❌ 뉴스 URL이 0개입니다. selector나 User-Agent 문제입니다.")
         return
-
-
 
     for idx, finance_url in enumerate(news_urls):
         print(f"\n[{idx+1}/{len(news_urls)}] 처리 중: {finance_url}")
@@ -35,10 +33,20 @@ def run_finance_news_etl():
             print("❌ 본문 없음 → 스킵")
             continue
 
+        if len(article_text) < 100:
+             print("⚠️ 본문이 너무 짧음(단신) → 스킵")
+             continue
+
         chunks = split_text(article_text)
         sentiments = analyze_sentiment(chunks)
+        related_stocks = get_stock_mentions(article_text)
 
-        save_news_to_es(real_url, article_text, chunks, sentiments)
+        if related_stocks:
+            print(f"   jQuery 종목 발견: {related_stocks}")
+        else:
+            print(f"   jQuery 종목 없음 (시장 시황 등)")
+
+        save_news_to_es(real_url, article_text, chunks, sentiments, related_stocks)
 
     print("\n✅ ETL 전체 완료 (Finance 뉴스 → ES 저장)")
 
