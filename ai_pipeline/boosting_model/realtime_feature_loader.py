@@ -6,20 +6,15 @@ import os
 class RealtimeFeatureLoader:
     """
     실시간 체결 정보 CSV를 로드하고 머신러닝 피쳐로 변환
-    
-    CSV 컬럼:
-    - timestamp: 체결 시간
-    - stck_shrn_iscd: 종목코드
-    - stck_prpr: 현재가
-    - prdy_vrss: 전일대비
-    - prdy_ctrt: 전일대비율
-    - acml_vol: 누적 거래량
-    - wght_avrg_prc: 가중평균가
-    - askp1: 매도호가1
-    - bidp1: 매수호가1
-    - total_askp_rsqn: 총 매도호가 잔량
-    - total_bidp_rsqn: 총 매수호가 잔량
     """
+    
+    # 필수 컬럼 정의 (CSV 파일에 반드시 있어야 하는 컬럼들)
+    REQUIRED_COLUMNS = [
+        'timestamp', 'stock_code', 'stck_cntg_hour', 'stck_prpr',
+        'prdy_vrss', 'prdy_ctrt', 'acml_tr_pbmn', 'acml_vol',
+        'seln_cntg_csnu', 'shnu_cntg_csnu', 'askp1', 'bidp1',
+        'total_askp_rsqn', 'total_bidp_rsqn'
+    ]
     
     def __init__(self, csv_path):
         self.csv_path = csv_path
@@ -33,78 +28,57 @@ class RealtimeFeatureLoader:
         """CSV 파일 로드 및 전처리"""
         print("\n📊 체결 정보 CSV 로딩 중...")
         
-        # CSV 로드 (쉼표 구분자)
+        # CSV 로드
         df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
         
-        print(f"   원본 데이터: {len(df):,}개 행")
+        print(f"   원본 데이터: {len(df):,}개 행, {len(df.columns)}개 컬럼")
         
-        # 컬럼명 정리 (공백 제거)
-        df.columns = df.columns.str.strip()
+        # 컬럼명 정리 (공백/특수문자 제거, 소문자 변환)
+        df.columns = df.columns.str.strip().str.lower()
         
-        # 실제 컬럼명 출력 (디버깅용)
-        print(f"   실제 컬럼명: {df.columns.tolist()[:5]}...")  # 처음 5개만
-        
-        # 종목코드 컬럼 찾기 (여러 가능성 체크)
-        stock_col = None
-        for possible_name in ['stck_shrn_iscd', 'stock_code', '종목코드', 'code']:
-            if possible_name in df.columns:
-                stock_col = possible_name
-                break
-        
-        if stock_col is None:
-            print(f"❌ 종목코드 컬럼을 찾을 수 없습니다. 전체 컬럼명:")
-            print(df.columns.tolist())
-            raise KeyError("종목코드 컬럼이 없습니다.")
-        
-        print(f"   종목 코드 컬럼: '{stock_col}'")
-        print(f"   종목 수: {df[stock_col].nunique()}개")
-        
-        # 종목코드를 문자열로 변환 (앞에 0이 붙은 경우 처리)
-        df[stock_col] = df[stock_col].astype(str).str.zfill(6)
-        
-        # 컬럼명 통일 (이후 코드에서 'stock_code'로 사용)
-        if stock_col != 'stock_code':
-            df = df.rename(columns={stock_col: 'stock_code'})
-        
-        # 필수 컬럼 확인 및 매핑
-        required_cols = {
-            'timestamp': ['timestamp', '시간', 'time'],
-            'stck_cntg_hour': ['stck_cntg_hour', '체결시간'],
-            'stck_prpr': ['stck_prpr', '현재가', 'price', 'current_price'],
-            'prdy_vrss': ['prdy_vrss', '전일대비', 'change'],
-            'prdy_ctrt': ['prdy_ctrt', '전일대비율', 'change_rate'],
-            'acml_vol': ['acml_vol', '누적거래량', 'volume'],
-            'acml_tr_pbmn': ['acml_tr_pbmn', '누적거래대금'],
-            'seln_cntg_csnu': ['seln_cntg_csnu', 'seln_cntg_qty', '매도체결량'],
-            'shnu_cntg_csnu': ['shnu_cntg_csnu', 'shnu_cntg_qty', '매수체결량'],
-            'askp1': ['askp1', '매도호가1', 'ask1'],
-            'bidp1': ['bidp1', '매수호가1', 'bid1'],
-            'total_askp_rsqn': ['total_askp_rsqn', 'total_askp_qty', '총매도잔량', 'total_ask'],
-            'total_bidp_rsqn': ['total_bidp_rsqn', 'total_bidp_qty', '총매수잔량', 'total_bid']
+        # 컬럼명 표준화 매핑
+        column_mapping = {
+            'stck_shrn_iscd': 'stock_code',
+            # 실제 CSV의 컬럼명을 그대로 사용 (이미 표준)
         }
         
-        # 컬럼 매핑
-        for standard_name, possible_names in required_cols.items():
-            found = False
-            for pname in possible_names:
-                if pname in df.columns:
-                    if pname != standard_name:
-                        df = df.rename(columns={pname: standard_name})
-                    found = True
+        df = df.rename(columns=column_mapping)
+        
+        # stock_code 컬럼 확인 및 처리
+        if 'stock_code' not in df.columns:
+            # 종목코드 컬럼 찾기
+            for possible_name in ['stck_shrn_iscd', '종목코드', 'code']:
+                if possible_name in df.columns:
+                    df = df.rename(columns={possible_name: 'stock_code'})
                     break
-            
-            if not found:
-                print(f"⚠️  '{standard_name}' 컬럼을 찾을 수 없습니다. 사용 가능한 컬럼:")
-                print(df.columns.tolist())
-                raise KeyError(f"필수 컬럼 '{standard_name}'이 없습니다.")
+        
+        # 종목 코드 처리 (앞에 0 채우기 - 6자리로 통일)
+        df['stock_code'] = df['stock_code'].astype(str).str.zfill(6)
+        
+        # 필수 컬럼 체크
+        missing_cols = []
+        for col in self.REQUIRED_COLUMNS:
+            if col not in df.columns:
+                missing_cols.append(col)
+        
+        if missing_cols:
+            print(f"❌ 필수 컬럼 누락: {missing_cols}")
+            print(f"   실제 컬럼: {df.columns.tolist()}")
+            raise KeyError(f"필수 컬럼이 없습니다: {missing_cols}")
         
         # timestamp를 datetime으로 변환
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        try:
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        except:
+            print("⚠️ timestamp 변환 실패. 기본 형식으로 진행합니다.")
         
         # 정렬 (종목코드, 시간순)
         df = df.sort_values(['stock_code', 'timestamp']).reset_index(drop=True)
         
         print(f"✅ 전처리 완료")
+        print(f"   종목 수: {df['stock_code'].nunique()}개")
+        print(f"   데이터 기간: {df['timestamp'].min()} ~ {df['timestamp'].max()}")
+        
         return df
     
     def create_technical_features(self, df):
@@ -134,7 +108,7 @@ class RealtimeFeatureLoader:
             group['volume_ma_5'] = group['acml_vol'].rolling(window=5, min_periods=1).mean()
             group['volume_ratio'] = group['acml_vol'] / (group['volume_ma_5'] + 1e-8)
             
-            # 5. 거래대금 특징 (추가)
+            # 5. 거래대금 특징
             group['tr_amount_change'] = group['acml_tr_pbmn'].pct_change(1)
             
             # 6. 호가 스프레드
@@ -157,7 +131,7 @@ class RealtimeFeatureLoader:
             group['momentum_5'] = group['stck_prpr'] - group['stck_prpr'].shift(5)
             group['momentum_10'] = group['stck_prpr'] - group['stck_prpr'].shift(10)
             
-            # 11. 타겟 생성 (다음 N틱 후 가격 상승 여부)
+            # 11. 타겟 생성 (다음 5틱 후 가격 상승 여부)
             group['future_price_5'] = group['stck_prpr'].shift(-5)
             group['target'] = (group['future_price_5'] > group['stck_prpr']).astype(int)
             
@@ -177,11 +151,14 @@ class RealtimeFeatureLoader:
         df = self.create_technical_features(df)
         
         # 3. NaN 제거
+        original_len = len(df)
         df = df.dropna()
         
         if len(df) == 0:
             print("❌ 유효한 데이터가 없습니다.")
             return None, None, None
+        
+        print(f"\n🧹 NaN 제거: {original_len:,} → {len(df):,} ({len(df)/original_len*100:.1f}%)")
         
         # 4. 피쳐 선택 (GCN 임베딩은 나중에 merge)
         feature_cols = [
@@ -189,17 +166,17 @@ class RealtimeFeatureLoader:
             'price_change_1', 'price_change_5', 'price_change_10',
             'price_vs_ma5', 'price_vs_ma20',
             'volume_ratio',
-            'tr_amount_change',       # 거래대금 변화율 (추가)
+            'tr_amount_change',       # 거래대금 변화율
             'spread', 'spread_pct',
             'buy_pressure',
-            'buy_strength',           # 체결 강도 (추가)
+            'buy_strength',           # 체결 강도
             'volatility_5', 'volatility_10',
             'momentum_5', 'momentum_10'
         ]
         
-        X = df[feature_cols]
-        y = df['target']
-        stock_codes = df['stock_code']
+        X = df[feature_cols].copy()
+        y = df['target'].copy()
+        stock_codes = df['stock_code'].copy()
         
         print(f"\n✅ 최종 데이터 준비 완료!")
         print(f"   샘플 수: {len(X):,}")
@@ -222,3 +199,5 @@ if __name__ == "__main__":
         print(X.head())
         print(f"\n[타겟 분포]")
         print(y.value_counts())
+        print(f"\n[종목코드 샘플]")
+        print(stock_codes.head())
