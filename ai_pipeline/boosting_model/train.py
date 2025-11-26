@@ -10,9 +10,12 @@ import pickle
 import os
 import sys
 import warnings
+import json
 warnings.filterwarnings('ignore')
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 
 class StackingEnsemble:
     """
@@ -23,23 +26,30 @@ class StackingEnsemble:
     """
     
     def __init__(self, xgb_params=None, lgb_params=None):
-        # 기본 파라미터
-        self.xgb_params = xgb_params or {
-            'objective': 'binary:logistic',
-            'max_depth': 6,
-            'learning_rate': 0.1,
-            'n_estimators': 100,
-            'random_state': 42
-        }
-        
-        self.lgb_params = lgb_params or {
-            'objective': 'binary',
-            'num_leaves': 31,
-            'learning_rate': 0.05,
-            'n_estimators': 100,
-            'random_state': 42,
-            'verbose': -1
-        }
+        # 기본 파라미터 (best_params.json이 있으면 사용)
+        if os.path.exists('best_params.json'):
+            with open('best_params.json', 'r') as f:
+                best_params = json.load(f)
+                self.xgb_params = best_params.get('xgboost', {})
+                self.lgb_params = best_params.get('lightgbm', {})
+                print("✅ best_params.json에서 최적 파라미터 로드")
+        else:
+            self.xgb_params = xgb_params or {
+                'objective': 'binary:logistic',
+                'max_depth': 6,
+                'learning_rate': 0.1,
+                'n_estimators': 100,
+                'random_state': 42
+            }
+            
+            self.lgb_params = lgb_params or {
+                'objective': 'binary',
+                'num_leaves': 31,
+                'learning_rate': 0.05,
+                'n_estimators': 100,
+                'random_state': 42,
+                'verbose': -1
+            }
         
         # 모델 초기화
         self.xgb_model = xgb.XGBClassifier(**self.xgb_params)
@@ -182,28 +192,22 @@ class StackingEnsemble:
         print(f"✅ 모델 로드 완료: {save_dir}/")
 
 
-# 실행 예시
-if __name__ == "__main__":
-    from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
-    
+def train_with_real_data(csv_path):
+    """실제 체결 데이터로 학습"""
     print("="*60)
-    print("🚀 XGBoost + LightGBM 스태킹 모델 학습")
+    print("🚀 실제 데이터로 스태킹 모델 학습")
     print("="*60)
     
     # 1. 피처 생성
-    engineer = FeatureEngineer()
-    engineer.load_stock_mapping()
-    stock_codes = list(engineer.stock_mapping.keys())[:20]  # 20개 종목
-    
-    print(f"\n📌 사용 종목: {len(stock_codes)}개")
-    
-    X, y = engineer.create_final_features(stock_codes, use_dummy=True)
+    engineer = FeatureEngineer(csv_path=csv_path)
+    X, y = engineer.create_final_features()
     
     if X is None:
         print("❌ 피처 생성 실패")
-        exit()
+        return None
     
-    # 2. 데이터 분할
+    # 2. 데이터 분할 (시간순 분할 권장)
+    # 여기서는 단순 분할로 시작
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
@@ -230,3 +234,12 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("✅ 전체 프로세스 완료!")
     print("="*60)
+    
+    return model, results
+
+
+# 실행
+if __name__ == "__main__":
+    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    
+    model, results = train_with_real_data(csv_path)

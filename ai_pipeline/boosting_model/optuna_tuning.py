@@ -1,18 +1,26 @@
 import optuna
 import xgboost as xgb
 import lightgbm as lgb
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, StratifiedKFold
 import numpy as np
 import warnings
+import json
+import sys
+import os
 warnings.filterwarnings('ignore')
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 
 class HyperparameterTuner:
     """Optuna를 사용한 XGBoost & LightGBM 하이퍼파라미터 최적화"""
     
-    def __init__(self, X, y, n_trials=50):
+    def __init__(self, X, y, n_trials=100, cv_folds=5):
         self.X = X
         self.y = y
         self.n_trials = n_trials
+        self.cv_folds = cv_folds
         self.best_xgb_params = None
         self.best_lgb_params = None
     
@@ -36,10 +44,12 @@ class HyperparameterTuner:
         
         model = xgb.XGBClassifier(**params)
         
-        # 3-Fold CV로 평가 (빠른 속도를 위해 3폴드)
+        # StratifiedKFold로 클래스 비율 유지
+        cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
+        
         scores = cross_val_score(
             model, self.X, self.y, 
-            cv=3, 
+            cv=cv, 
             scoring='roc_auc',
             n_jobs=-1
         )
@@ -68,9 +78,11 @@ class HyperparameterTuner:
         
         model = lgb.LGBMClassifier(**params)
         
+        cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
+        
         scores = cross_val_score(
             model, self.X, self.y,
-            cv=3,
+            cv=cv,
             scoring='roc_auc',
             n_jobs=-1
         )
@@ -81,6 +93,7 @@ class HyperparameterTuner:
         """XGBoost 튜닝 실행"""
         print("\n🔧 XGBoost 하이퍼파라미터 튜닝 시작...")
         print(f"   Trial 횟수: {self.n_trials}")
+        print(f"   CV Folds: {self.cv_folds}")
         
         study = optuna.create_study(
             direction='maximize',
@@ -90,7 +103,8 @@ class HyperparameterTuner:
         study.optimize(
             self.objective_xgboost,
             n_trials=self.n_trials,
-            show_progress_bar=True
+            show_progress_bar=True,
+            n_jobs=1  # 멀티프로세싱 안정성을 위해
         )
         
         self.best_xgb_params = study.best_params
@@ -106,6 +120,7 @@ class HyperparameterTuner:
         """LightGBM 튜닝 실행"""
         print("\n🔧 LightGBM 하이퍼파라미터 튜닝 시작...")
         print(f"   Trial 횟수: {self.n_trials}")
+        print(f"   CV Folds: {self.cv_folds}")
         
         study = optuna.create_study(
             direction='maximize',
@@ -115,7 +130,8 @@ class HyperparameterTuner:
         study.optimize(
             self.objective_lightgbm,
             n_trials=self.n_trials,
-            show_progress_bar=True
+            show_progress_bar=True,
+            n_jobs=1
         )
         
         self.best_lgb_params = study.best_params
@@ -146,28 +162,36 @@ class HyperparameterTuner:
         }
 
 
-# 실행 예시
+def run_tuning(csv_path, n_trials=100):
+    """실제 데이터로 하이퍼파라미터 튜닝 실행"""
+    print("="*60)
+    print("🎯 하이퍼파라미터 튜닝 (실제 데이터)")
+    print("="*60)
+    
+    # 1. 피처 생성
+    engineer = FeatureEngineer(csv_path=csv_path)
+    X, y = engineer.create_final_features()
+    
+    if X is None:
+        print("❌ 피처 생성 실패")
+        return None
+    
+    # 2. 튜닝 실행
+    tuner = HyperparameterTuner(X, y, n_trials=n_trials, cv_folds=5)
+    best_params = tuner.tune_all()
+    
+    # 3. 결과 저장
+    with open('best_params.json', 'w') as f:
+        json.dump(best_params, f, indent=2)
+    
+    print("\n💾 최적 파라미터 저장 완료: best_params.json")
+    
+    return best_params
+
+
+# 실행
 if __name__ == "__main__":
-    import sys
-    import os
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
     
-    from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
-    
-    # 피처 생성
-    engineer = FeatureEngineer()
-    engineer.load_stock_mapping()
-    stock_codes = list(engineer.stock_mapping.keys())[:10]
-    
-    X, y = engineer.create_final_features(stock_codes, use_dummy=True)
-    
-    if X is not None:
-        # 튜닝 실행 (Trial 수를 줄여서 빠르게 테스트)
-        tuner = HyperparameterTuner(X, y, n_trials=20)
-        best_params = tuner.tune_all()
-        
-        # 결과 저장
-        import json
-        with open('best_params.json', 'w') as f:
-            json.dump(best_params, f, indent=2)
-        print("\n💾 최적 파라미터 저장 완료: best_params.json")
+    # 빠른 테스트를 위해 n_trials=50, 실제로는 100+ 권장
+    best_params = run_tuning(csv_path, n_trials=50)
