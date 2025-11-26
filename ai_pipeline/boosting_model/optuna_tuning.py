@@ -16,7 +16,7 @@ from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 class HyperparameterTuner:
     """Optuna를 사용한 XGBoost & LightGBM 하이퍼파라미터 최적화"""
     
-    def __init__(self, X, y, n_trials=100, cv_folds=5):
+    def __init__(self, X, y, n_trials=100, cv_folds=3):  # cv_folds를 3으로 기본값 변경
         self.X = X
         self.y = y
         self.n_trials = n_trials
@@ -162,7 +162,7 @@ class HyperparameterTuner:
         }
 
 
-def run_tuning(csv_path, n_trials=100):
+def run_tuning(csv_path, n_trials=3):  # 기본값을 3으로 변경
     """실제 데이터로 하이퍼파라미터 튜닝 실행"""
     print("="*60)
     print("🎯 하이퍼파라미터 튜닝 (실제 데이터)")
@@ -176,8 +176,8 @@ def run_tuning(csv_path, n_trials=100):
         print("❌ 피처 생성 실패")
         return None
     
-    # 2. 튜닝 실행
-    tuner = HyperparameterTuner(X, y, n_trials=n_trials, cv_folds=5)
+    # 2. 튜닝 실행 (cv_folds=3으로 빠르게)
+    tuner = HyperparameterTuner(X, y, n_trials=n_trials, cv_folds=3)
     best_params = tuner.tune_all()
     
     # 3. 결과 저장
@@ -193,5 +193,5 @@ def run_tuning(csv_path, n_trials=100):
 if __name__ == "__main__":
     csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
     
-    # 빠른 테스트를 위해 n_trials=50, 실제로는 100+ 권장
-    best_params = run_tuning(csv_path, n_trials=50)
+    # 🔥 빠른 테스트: n_trials=3으로 설정 (원래 50)
+    best_params = run_tuning(csv_path, n_trials=3)

@@ -69,15 +69,18 @@ class RealtimeFeatureLoader:
         # 필수 컬럼 확인 및 매핑
         required_cols = {
             'timestamp': ['timestamp', '시간', 'time'],
+            'stck_cntg_hour': ['stck_cntg_hour', '체결시간'],
             'stck_prpr': ['stck_prpr', '현재가', 'price', 'current_price'],
             'prdy_vrss': ['prdy_vrss', '전일대비', 'change'],
             'prdy_ctrt': ['prdy_ctrt', '전일대비율', 'change_rate'],
             'acml_vol': ['acml_vol', '누적거래량', 'volume'],
-            'wght_avrg_prc': ['wght_avrg_prc', '가중평균가', 'avg_price'],
+            'acml_tr_pbmn': ['acml_tr_pbmn', '누적거래대금'],
+            'seln_cntg_csnu': ['seln_cntg_csnu', 'seln_cntg_qty', '매도체결량'],
+            'shnu_cntg_csnu': ['shnu_cntg_csnu', 'shnu_cntg_qty', '매수체결량'],
             'askp1': ['askp1', '매도호가1', 'ask1'],
             'bidp1': ['bidp1', '매수호가1', 'bid1'],
-            'total_askp_rsqn': ['total_askp_rsqn', '총매도호가잔량', 'total_ask'],
-            'total_bidp_rsqn': ['total_bidp_rsqn', '총매수호가잔량', 'total_bid']
+            'total_askp_rsqn': ['total_askp_rsqn', 'total_askp_qty', '총매도잔량', 'total_ask'],
+            'total_bidp_rsqn': ['total_bidp_rsqn', 'total_bidp_qty', '총매수잔량', 'total_bid']
         }
         
         # 컬럼 매핑
@@ -131,23 +134,30 @@ class RealtimeFeatureLoader:
             group['volume_ma_5'] = group['acml_vol'].rolling(window=5, min_periods=1).mean()
             group['volume_ratio'] = group['acml_vol'] / (group['volume_ma_5'] + 1e-8)
             
-            # 5. 호가 스프레드
-            group['spread'] = (group['askp1'] - group['bidp1']) / (group['stck_prpr'] + 1e-8)
+            # 5. 거래대금 특징 (추가)
+            group['tr_amount_change'] = group['acml_tr_pbmn'].pct_change(1)
             
-            # 6. 매수/매도 압력
+            # 6. 호가 스프레드
+            group['spread'] = (group['askp1'] - group['bidp1']) / (group['stck_prpr'] + 1e-8)
+            group['spread_pct'] = group['spread'] * 100
+            
+            # 7. 매수/매도 압력
             total_orders = group['total_askp_rsqn'] + group['total_bidp_rsqn'] + 1e-8
             group['buy_pressure'] = group['total_bidp_rsqn'] / total_orders
             
-            # 7. 변동성 (최근 N틱의 표준편차)
+            # 8. 체결 강도 (매수 vs 매도 체결량)
+            total_cntg = group['seln_cntg_csnu'] + group['shnu_cntg_csnu'] + 1e-8
+            group['buy_strength'] = group['shnu_cntg_csnu'] / total_cntg
+            
+            # 9. 변동성 (최근 N틱의 표준편차)
             group['volatility_5'] = group['price_change_1'].rolling(window=5, min_periods=1).std()
             group['volatility_10'] = group['price_change_1'].rolling(window=10, min_periods=1).std()
             
-            # 8. 가격 모멘텀 (현재가 - N틱 전 가격)
+            # 10. 가격 모멘텀
             group['momentum_5'] = group['stck_prpr'] - group['stck_prpr'].shift(5)
             group['momentum_10'] = group['stck_prpr'] - group['stck_prpr'].shift(10)
             
-            # 9. 타겟 생성 (다음 N틱 후 가격 상승 여부)
-            # 여기서는 5틱 후 가격이 현재보다 높으면 1, 낮으면 0
+            # 11. 타겟 생성 (다음 N틱 후 가격 상승 여부)
             group['future_price_5'] = group['stck_prpr'].shift(-5)
             group['target'] = (group['future_price_5'] > group['stck_prpr']).astype(int)
             
@@ -175,12 +185,14 @@ class RealtimeFeatureLoader:
         
         # 4. 피쳐 선택 (GCN 임베딩은 나중에 merge)
         feature_cols = [
-            'prdy_ctrt',           # 전일대비율
+            'prdy_ctrt',              # 전일대비율
             'price_change_1', 'price_change_5', 'price_change_10',
             'price_vs_ma5', 'price_vs_ma20',
             'volume_ratio',
-            'spread',
+            'tr_amount_change',       # 거래대금 변화율 (추가)
+            'spread', 'spread_pct',
             'buy_pressure',
+            'buy_strength',           # 체결 강도 (추가)
             'volatility_5', 'volatility_10',
             'momentum_5', 'momentum_10'
         ]
