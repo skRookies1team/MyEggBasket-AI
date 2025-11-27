@@ -108,7 +108,7 @@ def run_full_training_pipeline(csv_path, do_tuning=False, n_trials=3):
 
 
 if __name__ == "__main__":
-    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
     
     # 옵션 1: 튜닝 없이 빠르게 학습만
     # model, results = run_full_training_pipeline(csv_path, do_tuning=False)

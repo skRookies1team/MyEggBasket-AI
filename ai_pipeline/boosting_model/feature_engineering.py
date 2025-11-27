@@ -146,7 +146,7 @@ class FeatureEngineer:
 
 # 실행 예시
 if __name__ == "__main__":
-    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
     
     engineer = FeatureEngineer(csv_path=csv_path)
     X, y = engineer.create_final_features()

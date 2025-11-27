@@ -240,6 +240,6 @@ def train_with_real_data(csv_path):
 
 # 실행
 if __name__ == "__main__":
-    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
     
     model, results = train_with_real_data(csv_path)

@@ -191,7 +191,7 @@ def run_tuning(csv_path, n_trials=3):  # 기본값을 3으로 변경
 
 # 실행
 if __name__ == "__main__":
-    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
     
     # 🔥 빠른 테스트: n_trials=3으로 설정 (원래 50)
     best_params = run_tuning(csv_path, n_trials=3)

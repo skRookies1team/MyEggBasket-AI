@@ -11,7 +11,7 @@ class RealtimeFeatureLoader:
     # 필수 컬럼 정의 (CSV 파일에 반드시 있어야 하는 컬럼들)
     REQUIRED_COLUMNS = [
         'timestamp', 'stock_code', 'stck_cntg_hour', 'stck_prpr',
-        'prdy_vrss', 'prdy_ctrt', 'acml_tr_pbmn', 'acml_vol',
+        'prdy_vrss', 'prdy_ctrt', 'acml_tr_pbmn',
         'seln_cntg_csnu', 'shnu_cntg_csnu', 'askp1', 'bidp1',
         'total_askp_rsqn', 'total_bidp_rsqn'
     ]
@@ -104,9 +104,6 @@ class RealtimeFeatureLoader:
             group['price_vs_ma5'] = (group['stck_prpr'] - group['ma_5']) / (group['ma_5'] + 1e-8)
             group['price_vs_ma20'] = (group['stck_prpr'] - group['ma_20']) / (group['ma_20'] + 1e-8)
             
-            # 4. 거래량 특징
-            group['volume_ma_5'] = group['acml_vol'].rolling(window=5, min_periods=1).mean()
-            group['volume_ratio'] = group['acml_vol'] / (group['volume_ma_5'] + 1e-8)
             
             # 5. 거래대금 특징
             group['tr_amount_change'] = group['acml_tr_pbmn'].pct_change(1)
@@ -165,7 +162,6 @@ class RealtimeFeatureLoader:
             'prdy_ctrt',              # 전일대비율
             'price_change_1', 'price_change_5', 'price_change_10',
             'price_vs_ma5', 'price_vs_ma20',
-            'volume_ratio',
             'tr_amount_change',       # 거래대금 변화율
             'spread', 'spread_pct',
             'buy_pressure',
@@ -189,7 +185,7 @@ class RealtimeFeatureLoader:
 
 # 실행 테스트
 if __name__ == "__main__":
-    csv_path = r"C:\rookies4dev\final_project\MyEggBasket-AI\20251120.csv"
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
     
     loader = RealtimeFeatureLoader(csv_path)
     X, y, stock_codes = loader.prepare_features()
