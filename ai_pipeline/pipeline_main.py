@@ -12,7 +12,7 @@ from ai_pipeline.graph_build.build_edges import build_graph_structure
 from ai_pipeline.graph_build.build_gcn_dataset import create_pytorch_dataset
 from ai_pipeline.gcn_model.run_gcn import run_gcn_inference
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
-# from ai_pipeline.boosting_model.predict import run_prediction (이건 나중에 만들 파일)
+from ai_pipeline.boosting_model.predict import run_prediction
 
 
 def show_value_chain_recommendations():
@@ -105,16 +105,18 @@ def run_full_pipeline():
         run_gcn_inference()
 
         # [Step 5] 밸류체인 분석 결과 출력 
+        print("\n[Step 5] 밸류체인 분석 결과 ")
         show_value_chain_recommendations()
 
-        # 5. (예정) XGBoost 예측
-        # print("\n[Step 5] 최종 등락 예측")
-        # run_prediction() 
+        # 6. XGBoost 예측
+        print("\n[Step 6] 최종 등락 예측")
+        run_prediction() 
 
         elapsed = time.time() - start_time
         print("\n" + "="*60)
         print(f"✅ [전체 파이프라인] 완료! (소요시간: {elapsed:.2f}초)")
         print("="*60)
+
 
     except Exception as e:
         print(f"\n❌ 파이프라인 실행 중 치명적인 에러 발생: {e}")
