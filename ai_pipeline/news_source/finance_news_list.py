@@ -2,68 +2,66 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import random
+from datetime import datetime, timedelta
 
-# 네이버 금융 뉴스 (실시간 속보) 기본 URL
-BASE_URL = "https://finance.naver.com/news/news_list.naver?mode=LSS2D&section_id=101&section_id2=258"
+# 기업/종목 분석 뉴스 기본 URL (날짜, 페이지 제외)
+BASE_URL = "https://finance.naver.com/news/news_list.naver?mode=LSS3D&section_id=101&section_id2=258&section_id3=402"
 
-def fetch_finance_news_list(max_pages=1):
+def fetch_daily_news_list(target_date, max_pages=10):
     """
-    네이버 금융 뉴스 리스트를 수집합니다.
-    max_pages: 수집할 페이지 수 (기본값 1)
+    특정 날짜(YYYYMMDD)의 뉴스를 1~max_pages까지 수집합니다.
     """
-    
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
         "Referer": "https://finance.naver.com"
     }
 
-    all_urls = []
+    daily_urls = []
     
-    print(f"🔍 뉴스 리스트 수집 시작 (목표: {max_pages}페이지)...")
-
+    # 1페이지부터 max_pages(10)까지 순회
     for page in range(1, max_pages + 1):
-        # URL 뒤에 &page=숫자 붙이기
-        target_url = f"{BASE_URL}&page={page}"
+        # URL 조합: 기본URL + 날짜 + 페이지
+        current_url = f"{BASE_URL}&date={target_date}&page={page}"
         
-        # 로그가 너무 많이 뜨면 지저분하니까 1페이지랑 10페이지 단위만 출력
-        if page == 1 or page % 10 == 0:
-            print(f"   Reading Page {page}...", end=" ")
-
         try:
-            res = requests.get(target_url, headers=headers)
-            res.encoding = 'EUC-KR' # 한글 깨짐 방지
+            res = requests.get(current_url, headers=headers)
+            res.encoding = 'EUC-KR'
             
-            if res.status_code != 200:
-                print(f"❌ 실패 ({res.status_code})")
+            if res.status_code != 200: 
                 continue
 
             soup = BeautifulSoup(res.text, "html.parser")
             
-            # 뉴스 링크 추출 (제목에 걸린 링크)
-            links = soup.select("dl .articleSubject a")
+            # 뉴스 링크 추출 (기업분석 섹션 구조: dl > dd.articleSubject > a)
+            # 또는 썸네일 없는 기사: dl > dt.articleSubject > a
+            links = soup.select(".articleSubject a")
             
+            if not links:
+                # 링크가 없으면 해당 날짜의 페이지 끝임 -> 중단
+                break
+                
             count = 0
             for link in links:
                 href = link.get("href")
                 if href and "news_read" in href:
-                    # 특수문자 깨짐 복구 (§ -> &sect)
                     href = href.replace("§", "&sect")
-                    
                     full_url = "https://finance.naver.com" + href
-                    all_urls.append(full_url)
+                    daily_urls.append(full_url)
                     count += 1
             
-            if page == 1 or page % 10 == 0:
-                print(f"✅ {count}개 추출")
+            # 페이지에 뉴스가 없거나 적으면(마지막 페이지) 중단
+            if count == 0:
+                break
             
-            # 페이지 넘길 때마다 랜덤하게 쉬어주기 (차단 방지)
-            time.sleep(random.uniform(0.3, 0.7))
+            # 차단 방지 딜레이
+            time.sleep(random.uniform(0.1, 0.3))
 
-        except Exception as e:
-            print(f"\n❌ 에러 발생 (Page {page}): {e}")
+        except Exception:
+            continue
 
-    # 전체 중복 제거
-    unique_urls = list(set(all_urls))
-    print(f"🔥 총 수집된 고유 뉴스 URL: {len(unique_urls)}개")
-    
-    return unique_urls
+    # 중복 제거
+    return list(set(daily_urls))
+
+# (기존 함수와의 호환성을 위해 남겨두되, 이번 작업엔 안 씁니다)
+def fetch_finance_news_list(max_pages=1):
+    return []

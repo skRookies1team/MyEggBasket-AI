@@ -5,8 +5,13 @@ class StockMapper:
     def __init__(self):
         print("📊 주식 종목 리스트 로딩 중... (KOSPI/KOSDAQ)")
         self.stock_dict = self._load_stock_data()
+        
+        # [핵심 1] 긴 이름부터 먼저 검색하기 위해 길이 역순으로 정렬된 키 리스트 생성
+        # 예: ['SK하이닉스', 'SK스퀘어', ..., 'SK'] 순서
+        self.sorted_stock_names = sorted(self.stock_dict.keys(), key=len, reverse=True)
+        
         print(f"✅ 로딩 완료: 총 {len(self.stock_dict)}개 종목 감시 중")
-
+        
     def _load_stock_data(self):
         """
         KOSPI, KOSDAQ 전 종목 데이터를 가져와서
@@ -56,24 +61,29 @@ class StockMapper:
         # [알고리즘] 모든 종목을 하나씩 검색하면 느리므로
         # 일단 단순하게 루프를 돌리되, 나중에 속도 이슈 생기면 Aho-Corasick 등으로 고도화 가능
         # 현재 수준(2500개)에서는 단순 루프도 충분히 빠름.
-        
-        for name, code in self.stock_dict.items():
-            # 1. 일단 텍스트 안에 종목명이 있는지 1차 확인 (속도 최적화)
-            if name in text:
+
+        temp_text = text
+
+        for name in self.sorted_stock_names:
+            
+            # 일단 in 연산자로 빠르게 1차 필터링 (속도 최적화)
+            if name not in temp_text:
+                continue
+
+            pattern = r'(?<![가-힣a-zA-Z0-9])' + re.escape(name) + r'(?![가-힣a-zA-Z0-9])'
+
+            if re.search(pattern, temp_text):
+                code = self.stock_dict[name]
+                found_stocks.add(code)
                 
-                # 2. [정밀 검사] 진짜 단독 단어인지 확인 (Regex)
-                # (?<![가-힣a-zA-Z0-9]) : 내 앞에 한글,영어,숫자가 없어야 한다!
-                # 예: "실효성" -> 앞에 '실'(한글)이 있으므로 탈락
-                # 예: " 효성" -> 앞에 공백이므로 통과
-                # 예: "(효성)" -> 앞에 특수문자이므로 통과
-                
-                pattern = r'(?<![가-힣a-zA-Z0-9])' + re.escape(name)
-                
-                # 정규식 조건에 맞는 게 하나라도 있으면 인정
-                if re.search(pattern, text):
-                    found_stocks.add(code)
+                # [핵심 4] 찾은 단어를 지워버림 (마스킹)
+                # 예: "SK하이닉스 상승" -> "SK하이닉스" 발견 -> "@@@@@ 상승" 으로 변경
+                # 나중에 "SK"가 검색할 때 "SK" 글자가 없으므로 중복 안 잡힘!
+                # 길이를 유지하기 위해 같은 길이의 특수문자로 치환
+                temp_text = re.sub(pattern, '#' * len(name), temp_text)
                 
         return list(found_stocks)
+        
 # 전역에서 한 번만 로딩해서 쓰도록 인스턴스 생성 (Singleton처럼 활용)
 mapper = StockMapper()
 
