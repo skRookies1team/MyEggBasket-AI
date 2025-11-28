@@ -3,6 +3,6 @@
 .env
 
 best_params.json
-*.pt
-gcn_node_embeddings.pt
 models/
+__pycache__/
+*.pyc
