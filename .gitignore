@@ -1,1 +1,8 @@
 /venv
+/ai_pipeline/venv
+.env
+
+best_params.json
+models/
+__pycache__/
+*.pyc
