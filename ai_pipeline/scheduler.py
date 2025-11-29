@@ -40,7 +40,7 @@ def start_scheduler():
     sched.add_job(
         job_wrapper,
         'cron',
-        day_of_week='mon-fri',
+        day_of_week='mon-sat',
         hour='8-15',        # 8시~15시
         minute='*/10',      # 10분 간격
         id='market_mode'
