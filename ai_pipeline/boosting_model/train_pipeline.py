@@ -98,7 +98,8 @@ def run_full_training_pipeline(csv_path, do_tuning=False, n_trials=3):
     # ============================================================
     # 6단계: 모델 저장
     # ============================================================
-    model.save_model()
+    save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+    model.save_model(save_dir=save_path)    
     
     print("\n" + "="*60)
     print("✅ 전체 파이프라인 완료!")

@@ -243,7 +243,8 @@ def train_with_real_data(csv_path):
     results = model.evaluate(X_test, y_test)
     
     # 5. 모델 저장
-    model.save_model()
+    save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+    model.save_model(save_dir=save_path)
     
     print("\n" + "="*60)
     print("✅ 전체 프로세스 완료!")
