@@ -16,22 +16,23 @@ class RealtimeFeatureLoader:
         'total_askp_rsqn', 'total_bidp_rsqn'
     ]
     
-    def __init__(self, csv_path):
-        self.csv_path = csv_path
+    def __init__(self, csv_file_path):
+        self.csv_path = csv_file_path
         
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"❌ CSV 파일을 찾을 수 없습니다: {csv_path}")
+        if not os.path.exists(csv_file_path):
+            raise FileNotFoundError(f"❌ CSV 파일을 찾을 수 없습니다: {csv_file_path}")
         
-        print(f"✅ CSV 파일 경로 확인 완료: {csv_path}")
+        print(f"✅ CSV 파일 경로 확인 완료: {csv_file_path}")
     
     def load_and_preprocess(self):
         """CSV 파일 로드 및 전처리"""
         print("\n📊 체결 정보 CSV 로딩 중...")
         
         # CSV 로드
-        df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
-        
-        print(f"   원본 데이터: {len(df):,}개 행, {len(df.columns)}개 컬럼")
+        try:
+            df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
+        except UnicodeDecodeError:
+            df = pd.read_csv(self.csv_path, sep=',', encoding='cp949')
         
         # 컬럼명 정리 (공백/특수문자 제거, 소문자 변환)
         df.columns = df.columns.str.strip().str.lower()
@@ -39,6 +40,8 @@ class RealtimeFeatureLoader:
         # 컬럼명 표준화 매핑
         column_mapping = {
             'stck_shrn_iscd': 'stock_code',
+            'code': 'stock_code',
+            '종목코드': 'stock_code'
             # 실제 CSV의 컬럼명을 그대로 사용 (이미 표준)
         }
         

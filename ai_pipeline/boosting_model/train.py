@@ -115,21 +115,35 @@ class StackingEnsemble:
         self.is_trained = True
         print("\n✅ 스태킹 모델 학습 완료!")
     
-    def predict(self, X):
-        """예측 (확률값)"""
+    # 🛠️ [수정] predict_proba 추가 및 predict 표준화
+    def predict_proba(self, X):
+        """
+        [표준] 확률 반환 (N행 2열: [하락확률, 상승확률])
+        이 함수가 있어야 analyzer.py나 predict.py에서 에러가 안 남!
+        """
         if not self.is_trained:
             raise ValueError("모델이 학습되지 않았습니다.")
         
+        # 1. Base Model 예측
         xgb_pred = self.xgb_model.predict_proba(X)[:, 1]
         lgb_pred = self.lgb_model.predict_proba(X)[:, 1]
+        
+        # 2. Meta Model 입력 생성
         meta_features = np.column_stack([xgb_pred, lgb_pred])
         
-        return self.meta_model.predict_proba(meta_features)[:, 1]
-    
-    def predict_class(self, X, threshold=0.5):
-        """예측 (클래스)"""
-        proba = self.predict(X)
-        return (proba >= threshold).astype(int)
+        # 3. 최종 확률 (sklearn 표준 포맷인 (N, 2)로 반환)
+        # col 0: 하락(0) 확률, col 1: 상승(1) 확률
+        final_probs_class1 = self.meta_model.predict_proba(meta_features)[:, 1]
+        final_probs_class0 = 1 - final_probs_class1
+        
+        return np.column_stack([final_probs_class0, final_probs_class1])
+
+    def predict(self, X):
+        """
+        [표준] 클래스 예측 (0 또는 1 반환)
+        """
+        probabilities = self.predict_proba(X)[:, 1]
+        return (probabilities >= 0.5).astype(int)
     
     def evaluate(self, X_test, y_test):
         """모델 평가"""
@@ -137,8 +151,8 @@ class StackingEnsemble:
         print("📊 최종 모델 평가 (테스트 데이터)")
         print("="*60)
         
-        y_pred_proba = self.predict(X_test)
-        y_pred = self.predict_class(X_test)
+        y_pred_proba = self.predict_proba(X_test)[:, 1] # 상승 확률만 추출
+        y_pred = self.predict(X_test)
         
         accuracy = accuracy_score(y_test, y_pred)
         auc = roc_auc_score(y_test, y_pred_proba)
@@ -192,15 +206,16 @@ class StackingEnsemble:
         print(f"✅ 모델 로드 완료: {save_dir}/")
 
 
-def train_with_real_data(csv_path):
+def train_with_real_data(data_dir):
     """실제 체결 데이터로 학습"""
     print("="*60)
     print("🚀 실제 데이터로 스태킹 모델 학습")
     print("="*60)
     
     # 1. 피처 생성
-    engineer = FeatureEngineer(csv_path=csv_path)
+    engineer = FeatureEngineer(data_dir=data_dir)
     X, y = engineer.create_final_features()
+
     
     if X is None:
         print("❌ 피처 생성 실패")
@@ -240,6 +255,6 @@ def train_with_real_data(csv_path):
 
 # 실행
 if __name__ == "__main__":
-    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
+    data_dir = r"C:\Users\user\project\MyEggBasket-AI\data"
     
-    model, results = train_with_real_data(csv_path)
+    model, results = train_with_real_data(data_dir)
