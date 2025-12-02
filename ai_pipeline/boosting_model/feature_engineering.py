@@ -252,14 +252,14 @@ class FeatureEngineer:
         # 2. 모든 파일 순회하며 데이터 수집
         all_X = []
         all_y = []
-        last_stock_codes = [] # 마지막 파일의 코드를 반환용으로 저장
+        all_codes = [] 
         
         for f in csv_files:
             X_part, y_part, codes_part = self._process_single_file(f)
             if X_part is not None:
                 all_X.append(X_part)
                 all_y.append(y_part)
-                last_stock_codes = codes_part # 마지막 파일 기준
+                all_codes.append(codes_part) # 마지막 파일 기준
 
         if not all_X:
             return None, None, None
@@ -267,6 +267,8 @@ class FeatureEngineer:
         # 3. 데이터 합치기 (Concatenate)
         final_X = pd.concat(all_X, ignore_index=True)
         final_y = pd.concat(all_y, ignore_index=True)
+
+        final_codes = pd.concat(all_codes, ignore_index=True)
         
         print(f"\n✅ 통합 완료!")
         print(f"   총 파일 수: {len(csv_files)}개")
@@ -274,7 +276,7 @@ class FeatureEngineer:
         print(f"   타겟 분포(1=상승): {(final_y==1).sum():,}개 ({(final_y==1).sum()/len(final_y)*100:.1f}%)")
         print("="*60)
         
-        return final_X, final_y, last_stock_codes
+        return final_X, final_y, final_codes
 
 if __name__ == "__main__":
     data_dir = r"C:\Users\user\project\MyEggBasket-AI\data"
