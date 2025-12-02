@@ -206,15 +206,16 @@ class StackingEnsemble:
         print(f"✅ 모델 로드 완료: {save_dir}/")
 
 
-def train_with_real_data(csv_path):
+def train_with_real_data(data_dir):
     """실제 체결 데이터로 학습"""
     print("="*60)
     print("🚀 실제 데이터로 스태킹 모델 학습")
     print("="*60)
     
     # 1. 피처 생성
-    engineer = FeatureEngineer(csv_path=csv_path)
+    engineer = FeatureEngineer(data_dir=data_dir)
     X, y = engineer.create_final_features()
+
     
     if X is None:
         print("❌ 피처 생성 실패")
@@ -254,6 +255,6 @@ def train_with_real_data(csv_path):
 
 # 실행
 if __name__ == "__main__":
-    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
+    data_dir = r"C:\Users\user\project\MyEggBasket-AI\data"
     
-    model, results = train_with_real_data(csv_path)
+    model, results = train_with_real_data(data_dir)

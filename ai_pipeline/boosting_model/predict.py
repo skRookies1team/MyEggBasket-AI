@@ -14,7 +14,8 @@ def run_prediction(csv_path=None):
     print("🔮 [Step 6] XGBoost/LightGBM 최종 예측 및 추천")
     print("="*60)
 
-    # 1. 모델 로드
+    # 1. 모델 로드 경로 수정
+    # train_pipeline.py에서 저장한 위치와 동일하게 설정 (boosting_model/models)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_dir = os.path.join(current_dir, "models")
     
@@ -32,32 +33,32 @@ def run_prediction(csv_path=None):
         print(f"❌ 모델 로드 실패: {e}")
         return
 
-    # 2. 데이터 파일 경로 설정
+    # 2. 데이터 파일 경로 설정 (폴더 지원 추가)
     if csv_path is None:
         project_root = os.path.abspath(os.path.join(current_dir, "../../"))
-        # 우선순위: 입력받은 경로 -> data 폴더 -> 루트 폴더
-        paths_to_check = [
-            os.path.join(project_root, "data", "20251120.csv"),
-            os.path.join(project_root, "20251120.csv")
-        ]
         
-        for path in paths_to_check:
-            if os.path.exists(path):
-                csv_path = path
-                break
+        # [수정] 우선순위 변경: 'data' 폴더가 있으면 폴더를 선택
+        data_dir_path = os.path.join(project_root, "data")
+        legacy_file_path = os.path.join(project_root, "20251120.csv")
+        
+        if os.path.exists(data_dir_path):
+            csv_path = data_dir_path
+        elif os.path.exists(legacy_file_path):
+            csv_path = legacy_file_path
 
     if not csv_path or not os.path.exists(csv_path):
-        print(f"❌ 예측에 사용할 주식 데이터(CSV)를 찾을 수 없습니다.")
+        print(f"❌ 예측에 사용할 주식 데이터(폴더 또는 CSV)를 찾을 수 없습니다.")
         return
 
     print(f"📊 데이터 로딩 및 피처 생성 중... ({os.path.basename(csv_path)})")
     
-    # 3. 피처 엔지니어링 (에러 해결 핵심 구간)
+    # 3. 피처 엔지니어링
     try:
-        engineer = FeatureEngineer(csv_path=csv_path)
+        # [수정] FeatureEngineer가 이제 data_dir 인자를 받으므로 매개변수명 맞춤
+        engineer = FeatureEngineer(data_dir=csv_path)
         features_ret = engineer.create_final_features()
 
-        # [수정] 반환값 개수에 따라 유연하게 대처 (Unpacking Error 해결)
+        # 반환값 개수에 따라 유연하게 대처
         X = None
         stock_codes = []
         
@@ -77,12 +78,11 @@ def run_prediction(csv_path=None):
         print("❌ 생성된 피처 데이터가 없습니다.")
         return
 
-    # 4. 예측 실행 (AI 스코어링 로직 강화)
+    # 4. 예측 실행
     print("🚀 AI 예측 실행 중...")
     
     try:
-        # [수정] predict_proba를 사용하여 '상승 확률'을 가져옵니다.
-        # 일반 predict()는 0 또는 1만 나오므로 점수화하기 어렵습니다.
+        # predict_proba를 사용하여 '상승 확률' 추출
         probs = model.predict_proba(X)
         
         # 모델에 따라 [하락확률, 상승확률] 2차원 배열일 수 있음
@@ -92,17 +92,17 @@ def run_prediction(csv_path=None):
             up_probs = probs # 이미 1차원인 경우
             
     except AttributeError:
-        # 만약 모델이 predict_proba를 지원하지 않으면 predict 사용
+        # predict_proba 미지원 시
         print("⚠️ predict_proba 미지원 -> predict 결과 사용")
         up_probs = model.predict(X)
 
     # 5. 결과 정리
-    # [수정] 종목코드 6자리 포맷팅 (660 -> 000660)
+    # 종목코드 6자리 포맷팅
     fmt_codes = [str(c).zfill(6) for c in stock_codes]
 
     results_df = pd.DataFrame({
         'stock_code': fmt_codes,
-        'ai_score': np.round(up_probs * 100, 2) # 0.85 -> 85.0점
+        'ai_score': np.round(up_probs * 100, 2)
     })
 
     # 점수 높은 순 정렬

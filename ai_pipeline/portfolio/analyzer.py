@@ -39,7 +39,7 @@ class PortfolioAnalyzer:
         try:
             self.engineer = FeatureEngineer(csv_path)
             self.model = StackingEnsemble()
-            model_dir = os.path.join(os.path.dirname(__file__), "../boosting_model/models")
+            model_dir = os.path.join(os.path.dirname(__file__), "../../boosting_model/models")
             model_path = os.path.join(model_dir, 'meta_model.pkl')
             
             if os.path.exists(model_path):
@@ -267,15 +267,16 @@ class PortfolioAnalyzer:
     
 
 
-
 # ==========================================
 # 테스트 실행 코드
 # ==========================================
 if __name__ == "__main__":
-    # 오늘자 데이터 CSV (테스트용 경로 수정 필요)
-    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
+    # [수정] data 폴더 내의 '가장 최신 파일'로 경로 변경
+    # 예: 20251120.csv -> 20251127.csv (가지고 계신 파일 중 가장 최근 날짜)
+    csv_path = r"C:\Users\user\project\MyEggBasket-AI\data\20251127.csv"
     
     if os.path.exists(csv_path):
+        # 파일 하나만 넘겨서 그 날짜 기준으로 분석
         analyzer = PortfolioAnalyzer(csv_path)
         
         # [상황] 사용자가 '삼성전자'를 가지고 있음
@@ -287,17 +288,29 @@ if __name__ == "__main__":
         print("\n1️⃣ [밸류체인] 보유 종목과 연관된 추천")
         for stock in my_portfolio:
             recs = analyzer.analyze_value_chain(stock)
-            for r in recs:
-                print(f"   👉 {r['name']} ({r['code']}) - {r['reason']}")
+            # recs가 None이거나 비어있을 수 있으므로 체크
+            if recs:
+                for r in recs:
+                    print(f"   👉 {r['name']} ({r['code']}) - {r['reason']}")
+            else:
+                print("   ⚠️ 연관 종목을 찾을 수 없습니다.")
 
         # 2. 투자 성향별 추천 (신규 발굴)
         print("\n2️⃣ [투자성향] 새로운 종목 발굴")
         
         # 안정형 추천
         conservative = analyzer.recommend_by_style('conservative', top_n=3, exclude_codes=my_portfolio)
-        print(f"   🛡️ 안정형 추천: {[r['code'] for r in conservative]}")
+        if conservative:
+            print(f"   🛡️ 안정형 추천: {[r['code'] for r in conservative]}")
+        else:
+            print("   🛡️ 안정형 추천 종목 없음")
         
         # 줍줍형 추천
         reversal = analyzer.recommend_by_style('reversal', top_n=3, exclude_codes=my_portfolio)
-        print(f"   💎 줍줍형 추천: {[r['code'] for r in reversal]}")
+        if reversal:
+            print(f"   💎 줍줍형 추천: {[r['code'] for r in reversal]}")
+        else:
+            print("   💎 줍줍형 추천 종목 없음")
 
+    else:
+        print(f"❌ 파일을 찾을 수 없습니다: {csv_path}")
