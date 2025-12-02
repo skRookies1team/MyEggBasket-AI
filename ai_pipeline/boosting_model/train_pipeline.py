@@ -35,7 +35,16 @@ def run_full_training_pipeline(csv_path, do_tuning=False, n_trials=3):
     print("-"*60)
     
     engineer = FeatureEngineer(csv_path=csv_path)
-    X, y = engineer.create_final_features()
+    # 반환값 개수 유연하게 처리
+    features = engineer.create_final_features()
+
+    if len(features) == 3:
+        X, y, _ = features # 학습할 땐 종목코드(_) 필요 없음
+    elif len(features) == 2:
+        X, y = features
+    else:
+        print("❌ 피처 생성 실패")
+        return None, None
     
     if X is None:
         print("❌ 피처 생성 실패")
@@ -111,7 +120,7 @@ if __name__ == "__main__":
     csv_path = "20251120.csv"
     
     # 옵션 1: 튜닝 없이 빠르게 학습만
-    # model, results = run_full_training_pipeline(csv_path, do_tuning=False)
+    model, results = run_full_training_pipeline(csv_path, do_tuning=False)
     
     # 옵션 2: 튜닝 + 학습 (시간이 더 걸림)
-    model, results = run_full_training_pipeline(csv_path, do_tuning=True, n_trials=3)
+    #model, results = run_full_training_pipeline(csv_path, do_tuning=True, n_trials=3)
