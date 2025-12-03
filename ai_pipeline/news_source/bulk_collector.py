@@ -16,8 +16,8 @@ from ai_pipeline.news_etl.es_uploader import save_news_to_es, exists_in_es
 def run_date_range_collection(start_date_str, end_date_str):
     """
     기간별 대량 수집 실행기
-    start_date_str: "2025-10-01"
-    end_date_str: "2025-11-28"
+    start_date_str: "2025-11-29"
+    end_date_str: "2025-12-03"
     """
     print("\n" + "="*60)
     print(f"📚 [Bulk] 기간별 기업분석 뉴스 수집 시작")
@@ -80,4 +80,4 @@ def run_date_range_collection(start_date_str, end_date_str):
 
 if __name__ == "__main__":
     # 2025년 10월 1일 ~ 오늘(2025-11-28)
-    run_date_range_collection("2025-10-01", "2025-11-28")
+    run_date_range_collection("2025-11-29", "2025-12-03")

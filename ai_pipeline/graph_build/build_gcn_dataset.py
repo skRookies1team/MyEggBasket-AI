@@ -99,9 +99,20 @@ def create_pytorch_dataset():
     
     # 4. PyG 데이터 객체 생성
     data = Data(x=x, edge_index=edge_index)
+
+    stock_to_idx = {}
+    for idx, node_id in idx_to_node.items():
+        # 종목코드(6자리 숫자)만 골라냄
+        if node_id.isdigit() and len(node_id) == 6:
+            stock_to_idx[node_id] = idx
+            
+    data.stock_to_idx = stock_to_idx  # 👈 여기에 저장!
+    print(f"🏷️ 종목 매핑 정보 저장 완료 ({len(stock_to_idx)}개 종목)")
     
     # 5. 저장
-    save_path = "finance_graph_data.pt"
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    save_path = os.path.join(root_dir, "finance_graph_data.pt")
+    
     torch.save(data, save_path)
     
     print("-" * 50)

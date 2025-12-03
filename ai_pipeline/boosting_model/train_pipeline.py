@@ -1,6 +1,6 @@
 """
 통합 학습 파이프라인
-- 피처 생성 1회
+- 피처 생성 
 - Optuna 튜닝 (선택)
 - 모델 학습
 - 평가
@@ -38,6 +38,10 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
     engineer = FeatureEngineer(data_dir=data_dir)
     # 반환값 개수 유연하게 처리
     features = engineer.create_final_features()
+
+    if features is None:
+        print("❌ 피처 생성 실패")
+        return None, None
 
     if len(features) == 3:
         X, y, _ = features # 학습할 땐 종목코드(_) 필요 없음
@@ -85,8 +89,6 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
         print("\n💾 최적 파라미터 저장: best_params.json")
     else:
         print("\n[3단계] 하이퍼파라미터 튜닝 스킵")
-        print("-"*60)
-        print("   기본 파라미터 또는 기존 best_params.json 사용")
     
     # ============================================================
     # 4단계: 모델 학습

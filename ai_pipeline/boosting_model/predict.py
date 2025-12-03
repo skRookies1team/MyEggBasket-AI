@@ -100,13 +100,18 @@ def run_prediction(csv_path=None):
     # 종목코드 6자리 포맷팅
     fmt_codes = [str(c).zfill(6) for c in stock_codes]
 
-    results_df = pd.DataFrame({
+    temp_df = pd.DataFrame({
         'stock_code': fmt_codes,
-        'ai_score': np.round(up_probs * 100, 2)
+        'ai_score': np.round(up_probs * 100, 2),
+        'original_index': range(len(fmt_codes)) # 순서 보존용
     })
 
-    # 점수 높은 순 정렬
-    top_picks = results_df.sort_values(by='ai_score', ascending=False).head(10)
+    final_df = temp_df.drop_duplicates(subset=['stock_code'], keep='last')
+    
+    print(f"\n✂️ 중복 제거 완료: {len(temp_df)}행 -> {len(final_df)}행 (최신 데이터만 유지)")
+
+    top_picks = final_df.sort_values(by='ai_score', ascending=False).head(10)
+   
 
     # 6. 결과 출력
     print("\n🏆 [AI 강력 추천 종목 TOP 10]")
@@ -129,7 +134,7 @@ def run_prediction(csv_path=None):
     
     # (선택사항) 결과 파일 저장
     output_path = os.path.join(project_root, "final_prediction_result.csv")
-    results_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+    final_df.to_csv(output_path, index=False, encoding='utf-8-sig')
     print(f"✅ 전체 결과 저장 완료: {output_path}")
 
 if __name__ == "__main__":
