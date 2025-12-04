@@ -11,6 +11,7 @@ from ai_pipeline.nlp.text_splitter import split_text
 from ai_pipeline.nlp.sentiment import analyze_sentiment
 from ai_pipeline.news_etl.es_uploader import save_news_to_es, exists_in_es
 from ai_pipeline.mapping.stock_mapping import get_stock_mentions
+from ai_pipeline.nlp.news_analyzer import NewsAnalyzer
 
 def run_finance_news_etl():
     print("🔥 ETL 시작됨")
@@ -22,9 +23,10 @@ def run_finance_news_etl():
         print("❌ 뉴스 URL이 0개입니다. selector나 User-Agent 문제입니다.")
         return
     
+    analyzer = NewsAnalyzer()
+
     saved_count = 0
     skipped_dup = 0
-    skipped_irrelevant = 0
 
     for idx, finance_url in enumerate(news_urls):
         real_url = extract_real_article_url(finance_url)
@@ -35,37 +37,46 @@ def run_finance_news_etl():
             skipped_dup += 1
             continue
 
-        print(f"[{idx+1}/{len(news_urls)}] 🆕 신규 뉴스 분석 중: {real_url}")
-       
-
+        print(f"[{idx+1}/{len(news_urls)}] 🆕 분석 중: {real_url}")
         article_text = fetch_article_text(real_url)
-        if not article_text:
-            print("❌ 본문 없음 → 스킵")
-            continue
-
-        if len(article_text) < 100:
-             print("⚠️ 본문이 너무 짧음(단신) → 스킵")
-             continue
         
-        related_stocks = get_stock_mentions(article_text)
-
-        if not related_stocks:
-            print("   🗑️ [Pass] 주식 종목 언급 없음 (일반 경제 뉴스)")
-            skipped_irrelevant += 1
+        if not article_text or len(article_text) < 50:
             continue
 
-        chunks = split_text(article_text)
-        sentiments = analyze_sentiment(chunks)
+        # ---------------------------------------------------------
+        # 🧠 문장 단위 정밀 분석 실행
+        # ---------------------------------------------------------
+        # results: 종목별 지표 (score, trend, volatility)
+        # details: 문장별 점수 리스트
+        results, details = analyzer.analyze_article(article_text)
 
-        print(f"   ✅ 관련 종목 발견: {related_stocks}")
-        save_news_to_es(real_url, article_text, chunks, sentiments, related_stocks)
+        if not results:
+            print("   🗑️ [Pass] 종목 관련 내용 없음")
+            continue
+
+        # 관련 종목 추출
+        related_stocks = list(results.keys())
+        
+        # 구버전 호환용 (대표 감성 점수 하나씩만 리스트로)
+        legacy_sentiments = [results[code]['sentiment_score'] for code in related_stocks]
+
+        # 저장
+        save_news_to_es(
+            url=real_url, 
+            text=article_text, 
+            related_stocks=related_stocks,
+            analysis_results=results,   # [NEW] 상세 지표
+            sentence_details=details,   # [NEW] 문장별 근거
+            sentiments=legacy_sentiments # [Legacy] 호환용
+        )
+        
+        print(f"   ✅ 저장 완료: {related_stocks}")
         saved_count += 1
 
     print("\n" + "="*40)
-    print(f"✅ ETL 완료 요약")
-    print(f"   - 총 저장됨: {saved_count}건")
-    print(f"   - 중복 스킵: {skipped_dup}건")
-    print(f"   - 관련없음(종목X) 스킵: {skipped_irrelevant}건")
+    print(f"✅ ETL 완료")
+    print(f"   - 저장됨: {saved_count}건")
+    print(f"   - 중복됨: {skipped_dup}건")
     print("="*40)
 
 if __name__ == "__main__":

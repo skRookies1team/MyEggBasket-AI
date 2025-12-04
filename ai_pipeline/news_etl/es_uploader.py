@@ -4,7 +4,7 @@ from datetime import datetime
 from ai_pipeline.config.settings import ES_HOST
 
 # ES 연결
-es = Elasticsearch(ES_HOST)
+es = Elasticsearch("http://localhost:9200")
 INDEX_NAME = "news_articles"
 
 def generate_id_from_url(url):
@@ -19,31 +19,25 @@ def exists_in_es(url):
     except Exception:
         return False
 
-def save_news_to_es(url, text, chunks, sentiments, related_stocks):
-    """
-    뉴스 데이터 저장 (평균 감성 점수 계산 포함)
-    """
+def save_news_to_es(url, text=None, related_stocks=None,
+                    analysis_results=None, sentiments=None):
     doc_id = generate_id_from_url(url)
-    
-    # [핵심] 리스트(sentiments)의 평균을 구해 단일 점수(sentiment_score)로 변환
-    if sentiments and len(sentiments) > 0:
-        avg_score = sum(sentiments) / len(sentiments)
-    else:
-        avg_score = 0.0
 
-    doc = {
-        "url": url,
-        "text": text,
-        "chunks": chunks,
-        "sentiments": sentiments,    # 개별 문장 점수 리스트
-        "related_stocks": related_stocks,
-        "timestamp": datetime.now().isoformat(),
-        "sentiment_score": avg_score # [중요] AI가 사용할 평균 점수
-    }
+    # 업데이트할 필드만 묶기
+    update_fields = {}
 
+    if analysis_results is not None:
+        update_fields["stock_analysis"] = analysis_results
+
+    if sentiments is not None:
+        update_fields["sentiments"] = sentiments
+
+    # 기존 문서는 유지하고 지정된 필드만 덮어쓰기
     try:
-        # ES 버전에 따라 document=doc 또는 body=doc 사용
-        resp = es.index(index=INDEX_NAME, id=doc_id, document=doc)
-        # print(f"💾 저장 완료: {resp['_id']}") 
+        es.update(
+            index=INDEX_NAME,
+            id=doc_id,
+            body={"doc": update_fields}
+        )
     except Exception as e:
-        print(f"❌ ES 저장 실패: {e}")
+        print(f"❌ ES 업데이트 실패: {e}")
