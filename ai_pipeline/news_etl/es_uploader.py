@@ -19,25 +19,52 @@ def exists_in_es(url):
     except Exception:
         return False
 
-def save_news_to_es(url, text=None, related_stocks=None,
-                    analysis_results=None, sentiments=None):
+
+def save_news_to_es(url, title, text, related_stocks, analysis_results, sentence_details, value_chain_info):
+    """
+    [최종] 뉴스 및 정밀 분석 데이터 저장
+    
+    Parameters:
+    - url: 뉴스 링크
+    - title: 뉴스 제목
+    - text: 뉴스 원문
+    - related_stocks: 원문 내 발견된 종목 코드 리스트 ['005930', ...]
+    - analysis_results: 종목별 지표 (score, trend, volatility) -> sentiment_1h 등
+    - sentence_details: 문장별 분석 데이터 (문장, 티커, 점수)
+    - value_chain_info: 밸류체인 연관 종목 정보
+    """
     doc_id = generate_id_from_url(url)
+    
+    # ES에 저장될 최종 문서 구조
+    doc = {
+        "url": url,
+        "title": title,
+        "text": text,
+        "related_stocks": related_stocks,  # 원문 등장 종목
+        "value_chain_stocks": value_chain_info, # 밸류체인 연관 종목 (JSON List)
+        "timestamp": datetime.now().isoformat(),
+        
+        # 1. 문장 단위 상세 데이터
+        "sentences": sentence_details, 
+        # 예: [{"sentence": "...", "ticker": "005930", "sentiment": 0.9}, ...]
 
-    # 업데이트할 필드만 묶기
-    update_fields = {}
+        # 2. 종목별 종합 지표 (sentiment_1h, trend, volatility)
+        "sentiment_analysis": [] 
+    }
 
-    if analysis_results is not None:
-        update_fields["stock_analysis"] = analysis_results
+    # analysis_results 딕셔너리를 리스트로 변환 (매핑 폭발 방지)
+    if analysis_results:
+        for code, metrics in analysis_results.items():
+            doc["sentiment_analysis"].append({
+                "code": code,
+                "sentiment_1h": metrics['sentiment_score'],
+                "sentiment_trend": metrics['sentiment_trend'],
+                "sentiment_volatility": metrics['sentiment_volatility'],
+                "mention_count": metrics['mention_count']
+            })
 
-    if sentiments is not None:
-        update_fields["sentiments"] = sentiments
-
-    # 기존 문서는 유지하고 지정된 필드만 덮어쓰기
     try:
-        es.update(
-            index=INDEX_NAME,
-            id=doc_id,
-            body={"doc": update_fields}
-        )
+        es.index(index=INDEX_NAME, id=doc_id, document=doc)
+        # print(f"💾 저장 완료: {title[:20]}...")
     except Exception as e:
-        print(f"❌ ES 업데이트 실패: {e}")
+        print(f"❌ ES 저장 실패: {e}")

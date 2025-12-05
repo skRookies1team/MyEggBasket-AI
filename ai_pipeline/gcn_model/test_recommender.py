@@ -21,7 +21,7 @@ def find_similar_stocks(target_code, top_k=5):
 
     embeddings = np.load(npy_path)
     
-    # [수정] CSV 로드 시 컬럼명을 확인
+    # CSV 로드 시 컬럼명을 확인
     node_df = pd.read_csv(csv_path, dtype=str)
     
     # 컬럼명이 'stock_code'인지 'code'인지 확인 후 통일

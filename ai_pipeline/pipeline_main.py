@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from ai_pipeline.news_source.news_etl_runner import run_finance_news_etl
 from ai_pipeline.graph_build.build_edges import build_graph_structure
 from ai_pipeline.graph_build.build_gcn_dataset import create_pytorch_dataset
-from ai_pipeline.gcn_model.run_gcn import run_gcn_inference
+from ai_pipeline.gcn_model.run_gcn import train_gcn
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 from ai_pipeline.boosting_model.predict import run_prediction
 
@@ -93,7 +93,7 @@ def run_full_pipeline():
 
         # [Step 4] GCN 모델 실행 (임베딩 추출 - Boosting 모델용)
         print("\n📍 [Step 4/6] GCN 임베딩 벡터 추출")
-        run_gcn_inference()
+        train_gcn()
         
         # [Step 5] 밸류체인 분석 (CSV 기반 추천 보여주기)
         show_value_chain_recommendations()
