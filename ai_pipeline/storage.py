@@ -28,14 +28,14 @@ class ElasticStorage:
             }
         }
         self.es.indices.create(index=self.feature_index, body=mapping)
-        print(f"✅ Feature 인덱스 생성 완료: {self.feature_index}")
+        print(f" Feature 인덱스 생성 완료: {self.feature_index}")
 
     def save_features(self, df_features):
         """
         sentiment_aggregator의 결과(DataFrame)를 저장
         """
         if df_features.empty:
-            print("⚠️ 저장할 집계 데이터가 없습니다.")
+            print(" 저장할 집계 데이터가 없습니다.")
             return
 
         actions = []
@@ -55,6 +55,6 @@ class ElasticStorage:
 
         try:
             success, _ = helpers.bulk(self.es, actions)
-            print(f"🚀 가공된 피처 {success}건을 '{self.feature_index}'에 저장했습니다.")
+            print(f" 가공된 피처 {success}건을 '{self.feature_index}'에 저장했습니다.")
         except Exception as e:
-            print(f"❌ 저장 실패: {e}")
+            print(f" 저장 실패: {e}")

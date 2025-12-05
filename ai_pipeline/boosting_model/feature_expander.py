@@ -29,10 +29,10 @@ class FeatureExpander:
                 break
         
         if not csv_path:
-            print("⚠️ [TA] stock_data_5days.csv 파일을 찾을 수 없습니다. (지표 생성 건너뜀)")
+            print(" [TA] stock_data_5days.csv 파일을 찾을 수 없습니다. (지표 생성 건너뜀)")
             return
 
-        print(f"📈 [TA] 5일치 데이터 로드 및 단기 지표 계산 중...")
+        print(f" [TA] 5일치 데이터 로드 및 단기 지표 계산 중...")
         
         try:
             # 2. 데이터 로드
@@ -53,7 +53,7 @@ class FeatureExpander:
             if 'stock_code' in df_hist.columns:
                 df_hist['code'] = df_hist['stock_code'].astype(str).str.strip().str.zfill(6)
             else:
-                print("❌ CSV에 'stock_code' 컬럼이 없습니다.")
+                print(" CSV에 'stock_code' 컬럼이 없습니다.")
                 return
 
             # 5. 날짜순 정렬 (과거 -> 현재)
@@ -103,10 +103,10 @@ class FeatureExpander:
             # 6. 결과 하나로 합치기
             if results:
                 self.ta_features_df = pd.concat(results)
-                print(f"✅ 단기 지표 계산 완료! ({len(self.ta_features_df)}개 종목 확보)")
+                print(f" 단기 지표 계산 완료! ({len(self.ta_features_df)}개 종목 확보)")
             
         except Exception as e:
-            print(f"❌ TA 지표 생성 중 오류: {e}")
+            print(f" TA 지표 생성 중 오류: {e}")
 
     def add_technical_indicators(self, df):
         """
@@ -125,7 +125,7 @@ class FeatureExpander:
         # 타입 통일
         df[target_col] = df[target_col].astype(str).str.strip().str.zfill(6)
         
-        print(f"🧬 [TA] 5일치 기반 단기 지표 병합 중...")
+        print(f" [TA] 5일치 기반 단기 지표 병합 중...")
 
         # 병합 (Left Join)
         merged_df = pd.merge(
@@ -143,7 +143,7 @@ class FeatureExpander:
         # 데이터가 없어서 NaN인 경우 0으로 채움
         merged_df = merged_df.fillna(0)
         
-        print(f"✅ 병합 완료. (총 컬럼: {len(merged_df.columns)})")
+        print(f" 병합 완료. (총 컬럼: {len(merged_df.columns)})")
         return merged_df
 
 if __name__ == "__main__":

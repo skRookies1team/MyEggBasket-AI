@@ -20,8 +20,8 @@ def run_date_range_collection(start_date_str, end_date_str):
     기간별 대량 수집 실행기 (문장 분석 + 밸류체인 포함)
     """
     print("\n" + "="*60)
-    print(f"📚 [Bulk] 기간별 기업분석 뉴스 정밀 수집 시작")
-    print(f"   📅 기간: {start_date_str} ~ {end_date_str}")
+    print(f" [Bulk] 기간별 기업분석 뉴스 정밀 수집 시작")
+    print(f"    기간: {start_date_str} ~ {end_date_str}")
     print("="*60)
 
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -36,11 +36,11 @@ def run_date_range_collection(start_date_str, end_date_str):
 
     while current_date <= end_date:
         target_date = current_date.strftime("%Y%m%d") # YYYYMMDD 형식
-        print(f"\n📅 [Date: {target_date}] 뉴스 수집 중...", end=" ")
+        print(f"\n [Date: {target_date}] 뉴스 수집 중...", end=" ")
         
         # 1. 해당 날짜의 URL 목록 가져오기 (최대 10페이지)
         daily_urls = fetch_daily_news_list(target_date, max_pages=10)
-        print(f"👉 {len(daily_urls)}개 발견", end="")
+        print(f" {len(daily_urls)}개 발견", end="")
         
         if not daily_urls:
             current_date += timedelta(days=1)
@@ -68,7 +68,7 @@ def run_date_range_collection(start_date_str, end_date_str):
                 continue
 
             # ---------------------------------------------------------
-            # 🧠 [Core 1] 문장 단위 정밀 감성 분석
+            #  [Core 1] 문장 단위 정밀 감성 분석
             # ---------------------------------------------------------
             analysis_results, sentence_details = news_analyzer.analyze_article(article_text)
 
@@ -77,7 +77,7 @@ def run_date_range_collection(start_date_str, end_date_str):
             related_stocks = list(analysis_results.keys())
 
             # ---------------------------------------------------------
-            # 🔗 [Core 2] 밸류체인 연관 종목 추출
+            #  [Core 2] 밸류체인 연관 종목 추출
             # ---------------------------------------------------------
             value_chain_info = []
             for stock_code in related_stocks:
@@ -110,14 +110,14 @@ def run_date_range_collection(start_date_str, end_date_str):
             print(".", end="", flush=True) 
             time.sleep(0.05) 
 
-        print(f" ✅ {daily_saved}건 저장 완료")
+        print(f"  {daily_saved}건 저장 완료")
         total_saved += daily_saved
         
         # 하루 넘기기
         current_date += timedelta(days=1)
 
     print("\n" + "="*60)
-    print(f"🎉 전체 기간 수집 완료! 총 저장된 뉴스: {total_saved}건")
+    print(f" 전체 기간 수집 완료! 총 저장된 뉴스: {total_saved}건")
     print("="*60)
 
 if __name__ == "__main__":

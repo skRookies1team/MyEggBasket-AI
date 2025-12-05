@@ -34,7 +34,7 @@ def load_news_from_es(limit=100):
 # --------------------------
 def run_pipeline():
     print("=============================================")
-    print("🚀 금융 AI 파이프라인 실행 (ES 기반)")
+    print(" 금융 AI 파이프라인 실행 (ES 기반)")
     print("=============================================")
 
     # ---------------------------------------------------
@@ -43,10 +43,10 @@ def run_pipeline():
     news_data = load_news_from_es(limit=200)
 
     if not news_data:
-        print("❌ ES에 뉴스 데이터가 없습니다. 먼저 ETL(news_etl_runner.py)을 실행하세요.")
+        print(" ES에 뉴스 데이터가 없습니다. 먼저 ETL(news_etl_runner.py)을 실행하세요.")
         return
 
-    print(f"👉 ES에서 {len(news_data)}개 뉴스 로드 완료")
+    print(f" ES에서 {len(news_data)}개 뉴스 로드 완료")
 
     # 여러 뉴스가 존재 → 감성 score를 모두 모아서 feature로 활용
     sentiment_scores = []
@@ -124,7 +124,7 @@ def run_pipeline():
     xgb_model.train_and_evaluate(X_final, y_final)
 
     print("\n=============================================")
-    print("  ✅ 파이프라인 전체 실행 완료")
+    print("   파이프라인 전체 실행 완료")
     print("=============================================")
 
 

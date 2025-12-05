@@ -23,7 +23,7 @@ except ImportError:
 try:
     from ai_pipeline.gcn_model.model import get_gae_model
 except ImportError:
-    print("⚠️ GCN 모델 파일을 찾을 수 없습니다. (ai_pipeline/gcn_model/model.py 확인 필요)")
+    print(" GCN 모델 파일을 찾을 수 없습니다. (ai_pipeline/gcn_model/model.py 확인 필요)")
     get_gae_model = None
 
 # =========================================================
@@ -38,7 +38,7 @@ class GCNFeatureExtractor:
         pt_path = os.path.abspath(os.path.join(current_dir, "../../finance_graph_data.pt"))
         
         if not os.path.exists(pt_path):
-            print(f"❌ [GCN] 데이터 파일이 없습니다: {pt_path}")
+            print(f" [GCN] 데이터 파일이 없습니다: {pt_path}")
             self.data = None
             return
 
@@ -50,7 +50,7 @@ class GCNFeatureExtractor:
             # 구버전 PyTorch 호환용
             self.data = torch.load(pt_path, map_location=self.device)
         except Exception as e:
-            print(f"❌ [GCN] 데이터 로드 실패: {e}")
+            print(f" [GCN] 데이터 로드 실패: {e}")
             self.data = None
             return
 
@@ -75,10 +75,10 @@ class GCNFeatureExtractor:
                 self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True), strict=False)
                 self.model.eval()
             except Exception as e:
-                print(f"⚠️ 모델 가중치 로드 실패 (초기화 상태 사용): {e}")
+                print(f" 모델 가중치 로드 실패 (초기화 상태 사용): {e}")
                 self.model.eval()
         else:
-            print("⚠️ 학습된 모델 파일이 없습니다. (초기화 상태 사용)")
+            print(" 학습된 모델 파일이 없습니다. (초기화 상태 사용)")
             self.model.eval()
 
     def _load_json_mapping(self):
@@ -126,7 +126,7 @@ class GCNFeatureExtractor:
                     code = idx_to_stock[idx]
                     mapping[code] = vector
         else:
-            print(" ⚠️ 매핑 정보 없음: GCN 피처를 사용할 수 없습니다.")
+            print("  매핑 정보 없음: GCN 피처를 사용할 수 없습니다.")
             
         return mapping
 
@@ -170,7 +170,7 @@ class FeatureEngineer:
         try:
             self.gcn_loader = GCNFeatureExtractor()
         except Exception as e:
-            print(f"⚠️ GCN 로더 초기화 실패: {e}")
+            print(f" GCN 로더 초기화 실패: {e}")
             self.gcn_loader = None
 
         try:
@@ -223,7 +223,7 @@ class FeatureEngineer:
         return X
 
     def _process_single_file(self, csv_file):
-        print(f"   📄 처리 중: {os.path.basename(csv_file)}")
+        print(f" 처리 중: {os.path.basename(csv_file)}")
         loader = RealtimeFeatureLoader(csv_file)
         try:
             load_result = loader.prepare_features()
@@ -252,7 +252,7 @@ class FeatureEngineer:
     
     def create_final_features(self):
         print("\n" + "="*60)
-        print(f"🏗️ 통합 데이터셋 생성 시작")
+        print(f" 통합 데이터셋 생성 시작")
         print("="*60)
         
         csv_files = []
@@ -265,11 +265,11 @@ class FeatureEngineer:
             csv_files = [f for f in all_csvs if 'KRX' in f or re.search(r'\d{8}', f)]
             csv_files.sort()
         else:
-            print("❌ 처리할 CSV 파일이나 데이터 폴더가 지정되지 않았습니다.")
+            print(" 처리할 CSV 파일이나 데이터 폴더가 지정되지 않았습니다.")
             return None, None, None
 
         if not csv_files:
-            print(f"❌ '{self.data_dir}' 경로에 CSV 파일이 없습니다.")
+            print(f" '{self.data_dir}' 경로에 CSV 파일이 없습니다.")
             return None, None, None
 
         all_X, all_y, all_codes = [], [], []
@@ -286,7 +286,7 @@ class FeatureEngineer:
         final_y = pd.concat(all_y, ignore_index=True)
         final_codes = pd.Series(all_codes, name='stck_shrn_iscd')
         
-        print("\n🧹 모델 입력을 위한 데이터 클리닝 (문자열 제거)...")
+        print("\n 모델 입력을 위한 데이터 클리닝 (문자열 제거)...")
         
         drop_cols = ['stck_shrn_iscd', 'stock_code', 'code', 'date', 'timestamp']
         final_X = final_X.drop(columns=[c for c in drop_cols if c in final_X.columns], errors='ignore')
@@ -294,10 +294,10 @@ class FeatureEngineer:
         # 안전장치: 숫자형 컬럼만 남기기
         final_X = final_X.select_dtypes(include=[np.number])
         
-        print(f"\n✅ 통합 완료!")
-        print(f"   총 파일 수: {len(csv_files)}개")
-        print(f"   총 샘플 수: {len(final_X):,}")
-        print(f"   최종 피처 수: {len(final_X.columns)}개")
+        print(f"\n 통합 완료!")
+        print(f" 총 파일 수: {len(csv_files)}개")
+        print(f" 총 샘플 수: {len(final_X):,}")
+        print(f" 최종 피처 수: {len(final_X.columns)}개")
         print("="*60)
         
         return final_X, final_y, final_codes
@@ -318,5 +318,5 @@ if __name__ == "__main__":
             save_path = os.path.join(os.path.dirname(data_dir), "final_train_data.csv")
             final_df = pd.concat([X, y], axis=1)
             final_df.to_csv(save_path, index=False)
-            print(f"💾 {save_path} 에 저장 완료")
+            print(f" {save_path} 에 저장 완료")
             print(X.dtypes)

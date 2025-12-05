@@ -12,12 +12,12 @@ from ai_pipeline.nlp.news_analyzer import NewsAnalyzer
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 
 def run_finance_news_etl():
-    print("🔥 ETL 시작됨 (문장단위 정밀분석 + 밸류체인)")
+    print(" ETL 시작됨 (문장단위 정밀분석 + 밸류체인)")
 
     news_urls = fetch_finance_news_list(max_pages=3)
     
     if not news_urls:
-        print("💤 수집된 뉴스가 없습니다.")
+        print(" 수집된 뉴스가 없습니다.")
         return
     
     # 분석기들 초기화
@@ -35,30 +35,30 @@ def run_finance_news_etl():
             skipped_dup += 1
             continue
 
-        print(f"[{idx+1}] 🆕 분석 중: {real_url}")
+        print(f"[{idx+1}]  분석 중: {real_url}")
         
         # 2. 제목과 본문 수집 (수정된 크롤러 사용)
         title, article_text = fetch_article_text(real_url)
         
         if not article_text or len(article_text) < 50:
-            print("   ⚠️ 본문 없음/짧음 -> Pass")
+            print("    본문 없음/짧음 -> Pass")
             continue
 
         # ---------------------------------------------------------
-        # 🧠 [Core 1] 문장 단위 정밀 감성 분석
+        #  [Core 1] 문장 단위 정밀 감성 분석
         # ---------------------------------------------------------
         # results: { '005930': {'sentiment_score': 0.9, ...} }
         # details: [ {'sentence': '...', 'ticker': '...', 'sentiment': 0.9}, ... ]
         analysis_results, sentence_details = news_analyzer.analyze_article(article_text)
 
         if not analysis_results:
-            print("   🗑️ [Pass] 종목 언급 없음 (일반 뉴스)")
+            print("    [Pass] 종목 언급 없음 (일반 뉴스)")
             continue
 
         related_stocks = list(analysis_results.keys())
 
         # ---------------------------------------------------------
-        # 🔗 [Core 2] 밸류체인 연관 종목 추출
+        #  [Core 2] 밸류체인 연관 종목 추출
         # ---------------------------------------------------------
         value_chain_info = []
         for stock_code in related_stocks:
@@ -74,9 +74,9 @@ def run_finance_news_etl():
                     })
 
         # ---------------------------------------------------------
-        # 💾 [Core 3] 최종 저장
+        #  [Core 3] 최종 저장
         # ---------------------------------------------------------
-        print(f"   ✅ 발견: {related_stocks} | 문장수: {len(sentence_details)} | VC연관: {len(value_chain_info)}개")
+        print(f"    발견: {related_stocks} | 문장수: {len(sentence_details)} | VC연관: {len(value_chain_info)}개")
         
         save_news_to_es(
             url=real_url,
@@ -90,7 +90,7 @@ def run_finance_news_etl():
         saved_count += 1
 
     print("\n" + "="*40)
-    print(f"✅ ETL 완료")
+    print(f" ETL 완료")
     print(f"   - 새로 저장됨: {saved_count}건")
     print(f"   - 중복 건너뜀: {skipped_dup}건")
     print("="*40)

@@ -16,7 +16,7 @@ csv_path = os.path.join(current_dir, "gcn_node_list.csv")
 def find_similar_stocks(target_code, top_k=5):
     # 1. 데이터 로드
     if not os.path.exists(npy_path) or not os.path.exists(csv_path):
-        print("❌ 학습된 데이터가 없습니다. run_gcn.py를 먼저 실행하세요.")
+        print(" 학습된 데이터가 없습니다. run_gcn.py를 먼저 실행하세요.")
         return
 
     embeddings = np.load(npy_path)
@@ -29,7 +29,7 @@ def find_similar_stocks(target_code, top_k=5):
     
     # 2. 입력한 종목이 리스트에 있는지 확인
     if target_code not in node_df[col_name].values:
-        print(f"❌ '{target_code}'는 학습된 데이터에 없는 종목입니다.")
+        print(f" '{target_code}'는 학습된 데이터에 없는 종목입니다.")
         print(f"   (총 {len(node_df)}개 종목이 학습되었습니다)")
         return
 
@@ -43,7 +43,7 @@ def find_similar_stocks(target_code, top_k=5):
     # 5. 유사도 순 정렬
     sorted_indices = similarities.argsort()[::-1]
     
-    print(f"\n🔍 [{target_code}] AI 추천 유사 종목 TOP {top_k}")
+    print(f"\n [{target_code}] AI 추천 유사 종목 TOP {top_k}")
     print("=" * 50)
     print(f"{'순위':<5} | {'종목코드':<10} | {'유사도':<10}")
     print("-" * 50)
@@ -63,5 +63,5 @@ def find_similar_stocks(target_code, top_k=5):
     print("=" * 50)
 
 if __name__ == "__main__":
-    input_code = input("👉 유사도를 분석할 종목 코드를 입력하세요 (예: 000660): ").strip()
+    input_code = input(" 유사도를 분석할 종목 코드를 입력하세요 (예: 000660): ").strip()
     find_similar_stocks(input_code)

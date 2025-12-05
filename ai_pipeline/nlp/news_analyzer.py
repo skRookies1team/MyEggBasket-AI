@@ -13,7 +13,7 @@ from ai_pipeline.nlp.sentiment import analyze_sentiment
 
 class NewsAnalyzer:
     def __init__(self):
-        print("📰 [NLP] 정밀 뉴스 분석기(Sentence-Level) 초기화 중...")
+        print(" [NLP] 정밀 뉴스 분석기(Sentence-Level) 초기화 중...")
 
     def split_sentences(self, text):
         """
@@ -114,17 +114,17 @@ if __name__ == "__main__":
     삼성전자는 결국 2% 상승 마감하며 견조한 흐름을 유지했다.
     """
     
-    print("\n🔍 기사 분석 시작...")
+    print("\n 기사 분석 시작...")
     results, logs = analyzer.analyze_article(test_article)
     
-    print("\n📝 [문장별 상세 분석]")
+    print("\n [문장별 상세 분석]")
     for log in logs:
         print(f"   - {log['code']}: {log['score']:.2f} | {log['sentence']}")
         
-    print("\n📊 [최종 집계 결과]")
+    print("\n [최종 집계 결과]")
     for code, metrics in results.items():
         print(f"   [{code}]")
-        print(f"     ✅ 감성 점수 (Score): {metrics['sentiment_score']} (높으면 긍정)")
-        print(f"     🌊 변동성 (Volatility): {metrics['sentiment_volatility']} (높으면 불안정)")
-        print(f"     📈 추세 (Trend): {metrics['sentiment_trend']} (양수면 긍정적 마무리)")
-        print(f"     🗣️ 언급 횟수: {metrics['mention_count']}문장")
+        print(f"      감성 점수 (Score): {metrics['sentiment_score']} (높으면 긍정)")
+        print(f"      변동성 (Volatility): {metrics['sentiment_volatility']} (높으면 불안정)")
+        print(f"      추세 (Trend): {metrics['sentiment_trend']} (양수면 긍정적 마무리)")
+        print(f"      언급 횟수: {metrics['mention_count']}문장")

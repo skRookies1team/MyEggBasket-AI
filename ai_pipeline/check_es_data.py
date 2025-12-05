@@ -2,20 +2,20 @@ from elasticsearch import Elasticsearch
 import json
 
 def check_es():
-    print("🕵️‍♂️ ES 데이터 정밀 진단 시작")
+    print(" ES 데이터 정밀 진단 시작")
     
     try:
         es = Elasticsearch("http://localhost:9200")
         if not es.ping():
-            print("❌ ES 연결 실패: 실행 중인지 확인하세요.")
+            print(" ES 연결 실패: 실행 중인지 확인하세요.")
             return
 
         # 1. 전체 데이터 개수 확인
         count = es.count(index="news_articles")['count']
-        print(f"📊 저장된 뉴스 개수: {count}개")
+        print(f" 저장된 뉴스 개수: {count}개")
         
         if count == 0:
-            print("⚠️ 인덱스는 있는데 데이터가 비어있습니다.")
+            print(" 인덱스는 있는데 데이터가 비어있습니다.")
             return
         
 
@@ -23,11 +23,11 @@ def check_es():
         print(f"\n--- [2] AI 학습용 피처 ({target_index}) ---")
         
         if not es.indices.exists(index=target_index):
-            print(f"⚠️ 아직 {target_index} 인덱스가 생성되지 않았습니다. (데이터 집계 후 생성됨)")
+            print(f" 아직 {target_index} 인덱스가 생성되지 않았습니다. (데이터 집계 후 생성됨)")
             return
 
         feat_count = es.count(index=target_index)['count']
-        print(f"📊 생성된 피처 데이터: {feat_count}건")
+        print(f" 생성된 피처 데이터: {feat_count}건")
 
         if feat_count > 0:
 
@@ -41,7 +41,7 @@ def check_es():
                 }
             )
         
-            print("\n🔍 [데이터 샘플 확인]")
+            print("\n [데이터 샘플 확인]")
             for i, hit in enumerate(resp['hits']['hits']):
                 source = hit['_source']
                 print(f"\n[Sample {i+1}]")
@@ -51,7 +51,7 @@ def check_es():
                 print(f" - 제목: {source.get('title', '제목없음')[:30]}...")
 
     except Exception as e:
-        print(f"❌ 에러 발생: {e}")
+        print(f" 에러 발생: {e}")
 
 if __name__ == "__main__":
     check_es()

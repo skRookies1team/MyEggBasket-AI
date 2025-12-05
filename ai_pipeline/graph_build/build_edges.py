@@ -25,7 +25,7 @@ def load_value_chain_edges():
     csv_path = os.path.join(project_root, "data", "value_chain_result.csv")
     
     if not os.path.exists(csv_path):
-        print(f"⚠️ [Skip] 밸류체인 파일이 없습니다: {csv_path}")
+        print(f" [Skip] 밸류체인 파일이 없습니다: {csv_path}")
         return []
 
     try:
@@ -38,10 +38,10 @@ def load_value_chain_edges():
         target_col = '기업_코드포함'
         
         if target_col not in df.columns:
-            print(f"❌ CSV에 '{target_col}' 컬럼이 없습니다. 컬럼명: {df.columns}")
+            print(f" CSV에 '{target_col}' 컬럼이 없습니다. 컬럼명: {df.columns}")
             return []
 
-        print(f"📂 밸류체인 파일 로드됨: {len(df)}개 그룹(행) 발견")
+        print(f" 밸류체인 파일 로드됨: {len(df)}개 그룹(행) 발견")
         
         edges = []
         
@@ -64,11 +64,11 @@ def load_value_chain_edges():
             for src, dst in itertools.combinations(codes, 2):
                 edges.append((src, dst))
         
-        print(f"🔩 밸류체인 고정 관계 {len(edges)}개 추출 완료!")
+        print(f" 밸류체인 고정 관계 {len(edges)}개 추출 완료!")
         return edges
 
     except Exception as e:
-        print(f"❌ 밸류체인 로드 중 에러 발생: {e}")
+        print(f" 밸류체인 로드 중 에러 발생: {e}")
         return []
 
 
@@ -118,16 +118,16 @@ def fetch_filtered_stocks_from_es(index_name="news_articles", max_size=10000):
             
             valid_data_list.append(stocks)
             
-        print(f"✅ ES 뉴스 필터링 완료: {len(valid_data_list)}건 (제거된 시황기사: {dropped_count}건)")
+        print(f" ES 뉴스 필터링 완료: {len(valid_data_list)}건 (제거된 시황기사: {dropped_count}건)")
         return valid_data_list
         
     except Exception as e:
-        print(f"❌ ES 데이터 로딩 실패: {e}")
+        print(f" ES 데이터 로딩 실패: {e}")
         return []
         
    
 def build_graph_structure():
-    print("🏗️ [ES 기반] 엄격한 필터링 그래프 생성 시작...")
+    print(" [ES 기반] 엄격한 필터링 그래프 생성 시작...")
 
     edges = set()
 
@@ -145,15 +145,15 @@ def build_graph_structure():
             if src > dst: src, dst = dst, src
             edges.add((src, dst))
             
-    print(f"🔗 최종 통합 엣지 개수: {len(edges)}개")
+    print(f" 최종 통합 엣지 개수: {len(edges)}개")
 
     # (3) 저장
     save_path = os.path.join(project_root, "data", "graph_edges.csv")
     df_edges = pd.DataFrame(list(edges), columns=['source', 'target'])
     df_edges.to_csv(save_path, index=False)
     
-    print(f"💾 그래프 저장 완료: {save_path}")
-    print("👀 샘플:")
+    print(f" 그래프 저장 완료: {save_path}")
+    print(" 샘플:")
     print(df_edges.head())
 
 if __name__ == "__main__":

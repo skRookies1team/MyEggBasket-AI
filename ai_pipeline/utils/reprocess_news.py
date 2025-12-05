@@ -13,7 +13,7 @@ from ai_pipeline.news_etl.es_uploader import save_news_to_es
 
 def reprocess_all_news():
     print("\n" + "="*60)
-    print("🔄 [재처리] 기존 뉴스 데이터 문장 단위 재분석 시작")
+    print(" [재처리] 기존 뉴스 데이터 문장 단위 재분석 시작")
     print("="*60)
 
     es = Elasticsearch(ES_HOST)
@@ -27,7 +27,7 @@ def reprocess_all_news():
     # 여기서는 그냥 전부 다시 돌림
     query = {"query": {"match_all": {}}}
     
-    print("⏳ 데이터 로딩 중...")
+    print(" 데이터 로딩 중...")
     docs = scan(es, index=index_name, query=query)
     
     count = 0
@@ -52,7 +52,7 @@ def reprocess_all_news():
         results, details = analyzer.analyze_article(text)
         
         if not results:
-            print(f"[{count}] 🗑️ 종목 없음: {url[:30]}...")
+            print(f"[{count}]  종목 없음: {url[:30]}...")
             # (선택) 종목 없는 뉴스는 삭제할 수도 있음: es.delete(...)
             continue
             
@@ -70,10 +70,10 @@ def reprocess_all_news():
         
         updated += 1
         if updated % 10 == 0:
-            print(f"[{count}] ✅ {updated}개 업데이트 완료 (최근: {related_stocks})")
+            print(f"[{count}]  {updated}개 업데이트 완료 (최근: {related_stocks})")
 
     print("\n" + "="*60)
-    print(f"🎉 재처리 완료!")
+    print(f" 재처리 완료!")
     print(f"   - 총 스캔 문서: {count}개")
     print(f"   - 업데이트됨: {updated}개")
     print("="*60)

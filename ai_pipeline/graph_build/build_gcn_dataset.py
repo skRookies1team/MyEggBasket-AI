@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 es = Elasticsearch("http://localhost:9200")
 
 def load_graph_data():
-    print("🔄 그래프 데이터(CSV/JSON) 로딩 중...")
+    print(" 그래프 데이터(CSV/JSON) 로딩 중...")
     
     # 1. 파일 경로 정의 (data 폴더 확인)
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +28,7 @@ def load_graph_data():
         map_path = os.path.join(project_root, "data", "node_mapping.json")
 
     if not os.path.exists(edge_path) or not os.path.exists(map_path):
-        print(f"❌ 파일이 없습니다.\n 1. {edge_path}\n 2. {map_path}")
+        print(f" 파일이 없습니다.\n 1. {edge_path}\n 2. {map_path}")
         return None
 
     # 2. 로딩
@@ -45,7 +45,7 @@ def get_node_features(idx_to_node):
     """
     각 노드(점)가 가질 능력치(Feature) 벡터를 만듭니다.
     """
-    print("📊 노드 특징(Feature) 벡터 생성 중 (ES 조회 포함)...")
+    print(" 노드 특징(Feature) 벡터 생성 중 (ES 조회 포함)...")
     
     num_nodes = len(idx_to_node)
     x = torch.zeros((num_nodes, 3), dtype=torch.float)
@@ -79,7 +79,7 @@ def get_node_features(idx_to_node):
                 x[idx, 1] = 1.0
                 x[idx, 2] = 0.0
 
-    print("✅ 노드 특징 생성 완료.")
+    print(" 노드 특징 생성 완료.")
     return x
 
 def create_pytorch_dataset():
@@ -92,7 +92,7 @@ def create_pytorch_dataset():
     # ------------------------------------------------------------------
     # 🚑 [핵심 수정] 문자열(코드)을 정수(인덱스)로 변환 (Mapping)
     # ------------------------------------------------------------------
-    print("🔄 엣지 데이터 인덱싱 변환 중 (String -> Integer)...")
+    print(" 엣지 데이터 인덱싱 변환 중 (String -> Integer)...")
     
     # 1. 역방향 매핑 생성 (종목코드 -> 인덱스)
     # 예: {"005930": 1, "news_123": 0}
@@ -108,7 +108,7 @@ def create_pytorch_dataset():
     edges_df = edges_df.dropna(subset=['source_idx', 'target_idx'])
     
     if len(edges_df) < initial_len:
-        print(f"⚠️ 경고: {initial_len - len(edges_df)}개의 엣지가 매핑되지 않아 제거되었습니다.")
+        print(f" 경고: {initial_len - len(edges_df)}개의 엣지가 매핑되지 않아 제거되었습니다.")
         
     # 4. 정수형으로 변환 (float -> int)
     source_tensor = torch.tensor(edges_df['source_idx'].values.astype(int), dtype=torch.long)
@@ -131,7 +131,7 @@ def create_pytorch_dataset():
             stock_to_idx[node_id] = idx
             
     data.stock_to_idx = stock_to_idx
-    print(f"🏷️ 종목 매핑 정보 저장 완료 ({len(stock_to_idx)}개 종목)")
+    print(f" 종목 매핑 정보 저장 완료 ({len(stock_to_idx)}개 종목)")
     
     # 5. 저장
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
@@ -140,9 +140,9 @@ def create_pytorch_dataset():
     torch.save(data, save_path)
     
     print("-" * 50)
-    print(f"🎉 데이터셋 변환 완료!")
-    print(f"💾 저장 경로: {save_path}")
-    print(f"📊 노드: {data.num_nodes}개 / 엣지: {data.num_edges}개")
+    print(f" 데이터셋 변환 완료!")
+    print(f" 저장 경로: {save_path}")
+    print(f" 노드: {data.num_nodes}개 / 엣지: {data.num_edges}개")
     print("-" * 50)
 
 if __name__ == "__main__":

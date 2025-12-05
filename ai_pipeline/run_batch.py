@@ -10,7 +10,7 @@ from ai_pipeline.storage import ElasticStorage
 import pandas as pd
 
 def run_backfill():
-    print("🏭 뉴스 데이터 가공 공장 가동 시작...")
+    print(" 뉴스 데이터 가공 공장 가동 시작...")
     
     es = Elasticsearch("http://localhost:9200")
     
@@ -25,7 +25,7 @@ def run_backfill():
     )
     
     hits = resp['hits']['hits']
-    print(f"📦 원본 뉴스 {len(hits)}개를 로딩했습니다.")
+    print(f" 원본 뉴스 {len(hits)}개를 로딩했습니다.")
 
     if len(hits) == 0:
         print("가공할 뉴스가 없습니다.")
@@ -56,19 +56,19 @@ def run_backfill():
                 'score': score
             })
 
-    print(f"🔧 종목별 데이터로 변환 완료: 총 {len(raw_data)}건 처리 중...")
+    print(f" 종목별 데이터로 변환 완료: 총 {len(raw_data)}건 처리 중...")
 
     # 3. 데이터 집계 (우리가 만든 함수)
     df_features = calculate_aggregated_features(raw_data)
     
-    print(f"📊 집계 완료! 생성된 피처 데이터: {len(df_features)}행")
+    print(f" 집계 완료! 생성된 피처 데이터: {len(df_features)}행")
     print(df_features.head()) # 눈으로 확인
 
     # 4. ES에 저장 (우리가 만든 스토리지)
     storage = ElasticStorage()
     storage.save_features(df_features)
     
-    print("✅ 모든 작업이 완료되었습니다.")
+    print(" 모든 작업이 완료되었습니다.")
 
 if __name__ == "__main__":
     run_backfill()

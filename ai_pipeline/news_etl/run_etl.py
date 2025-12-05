@@ -16,4 +16,4 @@ def run_news_etl():
 
         save_news_to_es(url, text, chunks, sentiments)
 
-    print("📌 ETL 완료 (뉴스 → ES 저장)")
+    print(" ETL 완료 (뉴스 → ES 저장)")

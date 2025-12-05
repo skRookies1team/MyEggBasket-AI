@@ -15,8 +15,8 @@ env_path = PROJECT_ROOT / ".env"
 load_dotenv(dotenv_path=env_path, verbose=True)
 
 # 환경변수 확인
-#print("🔍 Loaded NAVER_CLIENT_ID =", os.getenv("NAVER_CLIENT_ID"))
-#print("🔍 Loaded NAVER_CLIENT_SECRET =", os.getenv("NAVER_CLIENT_SECRET"))
+#print(" Loaded NAVER_CLIENT_ID =", os.getenv("NAVER_CLIENT_ID"))
+#print(" Loaded NAVER_CLIENT_SECRET =", os.getenv("NAVER_CLIENT_SECRET"))
 
 # Elasticsearch 설정
 ES_HOST = os.getenv("ES_HOST", "http://localhost:9200")

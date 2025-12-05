@@ -67,10 +67,10 @@ def fetch_finance_news_list(max_pages=5):
     # 오늘 날짜 구하기 (YYYYMMDD)
     today = datetime.now().strftime("%Y%m%d")
     
-    print(f"🔍 [스케줄러] 오늘의 기업/종목 분석 뉴스 수집 시작 ({today})")
+    print(f" [스케줄러] 오늘의 기업/종목 분석 뉴스 수집 시작 ({today})")
     
     # 위에서 만든 날짜별 수집 함수 재활용
     urls = fetch_daily_news_list(today, max_pages)
     
-    print(f"🔥 총 수집된 뉴스 URL: {len(urls)}개")
+    print(f" 총 수집된 뉴스 URL: {len(urls)}개")
     return urls

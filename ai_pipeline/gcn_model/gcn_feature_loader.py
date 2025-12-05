@@ -16,13 +16,13 @@ try:
 except ImportError:
     # 혹시 model.py가 아니라면 run_gcn.py가 참조하는 곳을 찾아야 함
     # 임시로 여기에 클래스 정의가 필요할 수도 있음
-    print("⚠️ NewsStockGCN 클래스를 찾을 수 없습니다. 경로를 확인해주세요.")
+    print(" NewsStockGCN 클래스를 찾을 수 없습니다. 경로를 확인해주세요.")
     pass
 
 class GCNFeatureExtractor:
     def __init__(self, model_path=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print("🧠 [GCN 추출기] 초기화 중...")
+        print(" [GCN 추출기] 초기화 중...")
 
         # 1. 데이터 파일(.pt) 로드
         # run_gcn.py에 있던 경로 로직 그대로 차용
@@ -30,7 +30,7 @@ class GCNFeatureExtractor:
         pt_path = os.path.join(current_dir, "../../finance_graph_data.pt")
         
         if not os.path.exists(pt_path):
-            print(f"❌ 데이터 파일이 없습니다: {pt_path}")
+            print(f" 데이터 파일이 없습니다: {pt_path}")
             self.data = None
             return
 
@@ -41,7 +41,7 @@ class GCNFeatureExtractor:
             self.data = torch.load(pt_path) # 구버전 호환
 
         self.data = self.data.to(self.device)
-        print(f"   ✅ 그래프 데이터 로드 완료 (노드 {self.data.num_nodes}개)")
+        print(f"    그래프 데이터 로드 완료 (노드 {self.data.num_nodes}개)")
 
         # 2. 모델 초기화 (run_gcn.py 설정 참고: in=3, hidden=16, out=16)
         self.model = NewsStockGCN(in_channels=3, hidden_channels=16, out_channels=16).to(self.device)
@@ -54,9 +54,9 @@ class GCNFeatureExtractor:
         if os.path.exists(model_path):
             self.model.load_state_dict(torch.load(model_path, map_location=self.device))
             self.model.eval()
-            print(f"   ✅ 학습된 모델 가중치 로드 완료")
+            print(f"    학습된 모델 가중치 로드 완료")
         else:
-            print(f"   ⚠️ 학습된 모델이 없어 '초기화 상태'로 진행합니다.")
+            print(f"    학습된 모델이 없어 '초기화 상태'로 진행합니다.")
             self.model.eval()
 
 
@@ -108,7 +108,7 @@ class GCNFeatureExtractor:
                     code = idx_to_stock[idx]
                     mapping[code] = vector
         else:
-            print("⚠️ 경고: 데이터 파일에 'stock_to_idx' 매핑 정보가 없습니다.")
+            print(" 경고: 데이터 파일에 'stock_to_idx' 매핑 정보가 없습니다.")
             print("   -> 임베딩은 뽑았지만 어떤 종목인지 알 수 없어 병합이 불가능합니다.")
             print("   -> 그래프 생성 코드(create_graph.py)에서 data.stock_to_idx = ... 를 저장했는지 확인하세요.")
             
@@ -125,7 +125,7 @@ class GCNFeatureExtractor:
         elif 'code' in df.columns:
             target_col = 'code'
             
-        print(f"🧬 [{target_col}] 기준으로 GCN 피처 병합 시작...")
+        print(f" [{target_col}] 기준으로 GCN 피처 병합 시작...")
         
         emb_dict = self.get_embeddings()
         if not emb_dict:
@@ -148,7 +148,7 @@ class GCNFeatureExtractor:
         gcn_cols = [c for c in merged_df.columns if c.startswith('gcn_')]
         merged_df[gcn_cols] = merged_df[gcn_cols].fillna(0)
         
-        print(f"✅ 병합 완료! (총 {len(gcn_cols)}개 피처 추가됨)")
+        print(f" 병합 완료! (총 {len(gcn_cols)}개 피처 추가됨)")
         return merged_df
     
 

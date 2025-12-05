@@ -9,12 +9,12 @@ from elasticsearch.helpers import scan
 from ai_pipeline.config.settings import ES_HOST
 
 def fix_missing_scores():
-    print("🚑 기존 데이터 감성 점수 복구 작업 시작...")
+    print(" 기존 데이터 감성 점수 복구 작업 시작...")
     
     try:
         es = Elasticsearch(ES_HOST)
         if not es.ping():
-            print("❌ ES 연결 실패")
+            print(" ES 연결 실패")
             return
 
         # 'sentiment_score' 필드가 없는 문서만 검색
@@ -59,12 +59,12 @@ def fix_missing_scores():
             updated_count += 1
             
             if updated_count % 500 == 0:
-                print(f"   ⚡ {updated_count}개 복구 완료...")
+                print(f"    {updated_count}개 복구 완료...")
 
-        print(f"\n✅ 복구 완료! 총 {updated_count}개 문서에 점수가 추가되었습니다.")
+        print(f"\n 복구 완료! 총 {updated_count}개 문서에 점수가 추가되었습니다.")
 
     except Exception as e:
-        print(f"❌ 작업 중 에러 발생: {e}")
+        print(f" 작업 중 에러 발생: {e}")
 
 if __name__ == "__main__":
     fix_missing_scores()

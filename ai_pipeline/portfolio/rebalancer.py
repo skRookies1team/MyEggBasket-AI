@@ -30,10 +30,10 @@ class PortfolioRebalancer:
         # 2. 목표 비중 검증 (합이 1이 아니면 정규화하거나 경고)
         ratio_sum = sum(target_ratios.values())
         if ratio_sum == 0:
-            print("⚠️ 목표 비중 합계가 0입니다. 현금 보유를 권장합니다.")
+            print(" 목표 비중 합계가 0입니다. 현금 보유를 권장합니다.")
             return pd.DataFrame()
 
-        print(f"\n💰 [리밸런싱] 총 자산: {total_value:,.0f}원 (목표비중합: {ratio_sum:.2f})")
+        print(f"\n [리밸런싱] 총 자산: {total_value:,.0f}원 (목표비중합: {ratio_sum:.2f})")
         
         result_list = []
         all_codes = set(current_holdings.keys()) | set(target_ratios.keys())
@@ -71,10 +71,10 @@ class PortfolioRebalancer:
         - current_holdings: {'005930': 5000000, ...}
         - ai_scores_df: analyzer.get_ai_scores()의 결과 (code, ai_score)
         """
-        print("\n🤖 [AI 전략] AI 점수 기반 비중 산출 중...")
+        print("\n [AI 전략] AI 점수 기반 비중 산출 중...")
         
         if ai_scores_df is None or ai_scores_df.empty:
-            print("❌ AI 점수 데이터가 없습니다.")
+            print(" AI 점수 데이터가 없습니다.")
             return None
 
         # 보유 종목들의 AI 점수만 추출
@@ -85,7 +85,7 @@ class PortfolioRebalancer:
         existing_codes = target_df['code'].tolist()
         for code in my_codes:
             if code not in existing_codes:
-                print(f"   ⚠️ {code} 종목의 AI 점수가 없어 50점으로 가정합니다.")
+                print(f"    {code} 종목의 AI 점수가 없어 50점으로 가정합니다.")
                 # concat 대신 loc 사용
                 new_row = {'code': code, 'ai_score': 50.0}
                 target_df.loc[len(target_df)] = new_row
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     # 출력
     print(df.to_string(index=False))
     print("-" * 60)
-    print("👉 해석:")
+    print(" 해석:")
     for _, row in df.iterrows():
         action = row['매매제안']
         if action == "BUY":

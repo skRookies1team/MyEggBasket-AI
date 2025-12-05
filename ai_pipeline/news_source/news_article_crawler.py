@@ -30,7 +30,7 @@ def fetch_article_text(url):
         text_data = response.text
 
         # ============================================================
-        # 🚨 [핵심 추가] 자바스크립트 리다이렉트 감지 및 처리
+        #  [핵심 추가] 자바스크립트 리다이렉트 감지 및 처리
         # ============================================================
         # <SCRIPT>top.location.href='...';</SCRIPT> 패턴이 있는지 검사
         if "top.location.href" in text_data:
@@ -84,7 +84,7 @@ def fetch_article_text(url):
             return None
 
     except Exception as e:
-        # print(f"❌ 크롤링 에러: {e}") # 로그가 너무 많으면 주석 처리
+        # print(f" 크롤링 에러: {e}") # 로그가 너무 많으면 주석 처리
         return None
     
     

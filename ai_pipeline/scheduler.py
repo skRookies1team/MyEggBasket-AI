@@ -16,27 +16,27 @@ def job_wrapper():
     단순 크롤링뿐만 아니라 그래프 구축 -> GCN 실행까지 한 번에 처리합니다.
     """
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n[⏰ 스케줄러 실행] 현재 시간: {now}")
+    print(f"\n[ 스케줄러 실행] 현재 시간: {now}")
     
     try:
         # 전체 파이프라인 실행!
         run_full_pipeline()
     except Exception as e:
-        print(f"❌ 스케줄러 작업 중 에러 발생: {e}")
+        print(f" 스케줄러 작업 중 에러 발생: {e}")
 
 def start_scheduler():
     # 백그라운드 스케줄러 생성 (서울 시간 기준)
     sched = BackgroundScheduler(timezone='Asia/Seoul')
 
     # ====================================================
-    # 🗓️ 스케줄 설정 (Cron 방식)
+    #  스케줄 설정 (Cron 방식)
     # ====================================================
 
     # 0. [테스트용] 실행하자마자 5초 뒤에 한 번 돌려보기 (잘 되는지 확인용)
     # 나중에 필요 없으면 주석 처리하세요.
     # sched.add_job(job_wrapper, 'date', run_date=datetime.now(), id='test_run')
 
-    # 1. 🔥 [장중 모드] 평일(월~금) 08:30 ~ 16:00 → 10분마다 실행
+    # 1.  [장중 모드] 평일(월~금) 08:30 ~ 16:00 → 10분마다 실행
     sched.add_job(
         job_wrapper,
         'cron',
@@ -59,7 +59,7 @@ def start_scheduler():
 
     sched.start()
     print("\n" + "="*50)
-    print("🚀 뉴스 수집 스케줄러가 시작되었습니다!")
+    print(" 뉴스 수집 스케줄러가 시작되었습니다!")
     print("   - 장중 (08:00~15:00): 10분 간격")
     print("   - 야간 (18:00~23:00): 1시간 간격")
     print("   (종료하려면 Ctrl + C를 누르세요)")
@@ -70,7 +70,7 @@ def start_scheduler():
         while True:
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
-        print("\n👋 스케줄러를 종료합니다.")
+        print("\n 스케줄러를 종료합니다.")
         sched.shutdown()
 
 if __name__ == "__main__":

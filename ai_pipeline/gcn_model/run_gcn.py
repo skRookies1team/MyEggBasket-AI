@@ -19,8 +19,9 @@ sys.path.append(project_root)
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GCNEncoder, self).__init__()
-        self.conv1 = GCNConv(in_channels, 64)
-        self.conv2 = GCNConv(64, out_channels)
+        # [수정] 16차원 출력을 위해 중간 레이어를 64에서 32로 조정 (선택사항, 64 유지 가능)
+        self.conv1 = GCNConv(in_channels, 32) 
+        self.conv2 = GCNConv(32, out_channels)
         self.dropout = nn.Dropout(p=0.3) 
 
     def forward(self, x, edge_index):
@@ -34,19 +35,19 @@ class GCNEncoder(torch.nn.Module):
 # 2. 데이터 로드 및 학습 실행
 # ---------------------------------------------------------
 def train_gcn():
-    print("📂 그래프 데이터 로딩 중...")
+    print(" 그래프 데이터 로딩 중...")
     
     # 엣지 데이터 로드
     edge_path = os.path.join(project_root, "graph_edges.csv")
     if not os.path.exists(edge_path):
-        print("❌ 엣지 파일이 없습니다. build_edges.py를 먼저 실행하세요.")
+        print(" 엣지 파일이 없습니다. build_edges.py를 먼저 실행하세요.")
         return
 
     df_edges = pd.read_csv(edge_path, dtype=str)
     all_nodes = sorted(list(set(df_edges['source']).union(set(df_edges['target']))))
     node_to_idx = {code: i for i, code in enumerate(all_nodes)}
     
-    print(f"✅ 데이터 준비 완료: 노드 {len(all_nodes)}개, 엣지 {len(df_edges)}개")
+    print(f" 데이터 준비 완료: 노드 {len(all_nodes)}개, 엣지 {len(df_edges)}개")
 
     # ES 연결
     es = Elasticsearch("http://localhost:9200")
@@ -57,7 +58,7 @@ def train_gcn():
     # 0이 아닌 아주 작은 랜덤 값으로 초기화 (Feature Collapse 방지)
     x_features = np.random.randn(len(all_nodes), feature_dim) * 0.01 
     
-    print("📡 ES에서 피처 조회 및 매핑 중...")
+    print(" ES에서 피처 조회 및 매핑 중...")
     found_count = 0
     
     # [수정] 정확한 인덱스 이름 'stock_features_v1' 사용
@@ -92,11 +93,11 @@ def train_gcn():
         except Exception as e:
             pass
             
-    print(f"✅ 피처 매핑 완료: {found_count}/{len(all_nodes)} 종목 데이터 존재")
+    print(f" 피처 매핑 완료: {found_count}/{len(all_nodes)} 종목 데이터 존재")
     
     # 데이터가 너무 없으면 경고
     if found_count < 10:
-        print("⚠️ [경고] 매핑된 데이터가 너무 적습니다! run_batch.py를 실행했는지 확인하세요.")
+        print(" [경고] 매핑된 데이터가 너무 적습니다! run_batch.py를 실행했는지 확인하세요.")
 
     # 텐서 변환
     x = torch.tensor(x_features, dtype=torch.float)
@@ -107,13 +108,18 @@ def train_gcn():
 
     # 모델 학습
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = GCNEncoder(in_channels=feature_dim, out_channels=64).to(device) # 차원 64로 증가
+    
+    # ---------------------------------------------------------
+    # [핵심 수정] out_channels를 64에서 16으로 변경!
+    # ---------------------------------------------------------
+    model = GCNEncoder(in_channels=feature_dim, out_channels=16).to(device) 
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     
     x = x.to(device)
     edge_index = edge_index.to(device)
 
-    print("🚀 GAE 학습 시작...")
+    print(" GAE 학습 시작 (Target Embedding Dim: 16)...")
     model.train()
     
     for epoch in range(201): 
@@ -135,8 +141,6 @@ def train_gcn():
         neg_scores = (pos_src * neg_dst).sum(dim=1)
         
         # 4. Loss 계산 (BPR Loss 또는 Binary Cross Entropy 변형)
-        # Positive는 1에 가깝게(유사도 높게), Negative는 0에 가깝게(유사도 낮게)
-        # Softplus는 log(1 + exp(x)) 로 안정적인 손실 함수
         pos_loss = -torch.log(torch.sigmoid(pos_scores) + 1e-15).mean()
         neg_loss = -torch.log(1 - torch.sigmoid(neg_scores) + 1e-15).mean()
         
@@ -161,7 +165,7 @@ def train_gcn():
     df_nodes = pd.DataFrame(all_nodes, columns=['stock_code'])
     df_nodes.to_csv(os.path.join(save_dir, "gcn_node_list.csv"), index=False)
     
-    print("💾 임베딩 및 노드 리스트 저장 완료!")
+    print(" 임베딩 및 노드 리스트 저장 완료! (16차원)")
 
 if __name__ == "__main__":
     train_gcn()
