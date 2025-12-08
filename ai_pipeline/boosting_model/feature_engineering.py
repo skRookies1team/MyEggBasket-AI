@@ -166,7 +166,12 @@ class FeatureEngineer:
     def __init__(self, data_dir=None, csv_path=None):
         self.data_dir = data_dir
         self.csv_path = csv_path 
-        self.expander = FeatureExpander()
+        try:
+            self.expander = FeatureExpander()
+        except Exception:
+            # ta 라이브러리 등 의존성 문제로 FeatureExpander가 로드되지 않을 수 있음
+            # 이 경우 확장 기능 없이 기본 피처만 사용하도록 None으로 설정
+            self.expander = None
         try:
             self.gcn_loader = GCNFeatureExtractor()
         except Exception as e:
@@ -197,8 +202,21 @@ class FeatureEngineer:
                     num_cols = ddf.select_dtypes(include=[np.number]).columns.tolist()
                     keep_cols = ['stock_code'] + [c for c in num_cols if c != 'stock_code']
                     if len(keep_cols) > 1:
-                        ddf = ddf[keep_cols].set_index('stock_code')
-                        self.disclosure_df = ddf
+                        # 접두사로 공시 컬럼을 구분합니다 (충돌 방지)
+                        disc_df = ddf[keep_cols].set_index('stock_code')
+                        # 숫자형 컬럼 이름에 접두사 추가 (stock_code 제외)
+                        new_cols = {}
+                        for c in disc_df.columns:
+                            if c == 'stock_code':
+                                new_cols[c] = c
+                            else:
+                                new_cols[c] = f"disc_{c}"
+                        disc_df = disc_df.rename(columns=new_cols)
+                        self.disclosure_df = disc_df
+                        try:
+                            print(f" 공시 데이터 로드됨: 종목 {self.disclosure_df.shape[0]}개, 컬럼 {self.disclosure_df.shape[1]}개 (경로: {disc_path})")
+                        except Exception:
+                            pass
         except Exception:
             self.disclosure_df = None
     
@@ -261,7 +279,8 @@ class FeatureEngineer:
         X[temp_code_col] = stock_codes
         
         # 기술적 지표 추가
-        X = self.expander.add_technical_indicators(X)
+        if self.expander:
+            X = self.expander.add_technical_indicators(X)
         
         # GCN 피처 추가
         if self.gcn_loader:
@@ -278,15 +297,13 @@ class FeatureEngineer:
                 # 대용량 병합 성능을 위해 컬럼별 매핑(map) 방식으로 병합
                 # disclosure_df는 index가 stock_code이며 숫자형 컬럼만 포함
                 # 인덱스와 값을 numpy로 미리 준비 (벡터화된 인덱싱)
-                disc_index = self.disclosure_df.index.astype(str)
+                disc_index = self.disclosure_df.index.astype(str).str.strip().str.zfill(6)
                 for c in self.disclosure_df.columns:
-                    if c in X.columns:
-                        continue
                     try:
                         arr = self.disclosure_df[c].to_numpy()
                         keys = disc_index
-                        # X의 코드 배열
-                        codes = X[temp_code_col].astype(str).to_numpy()
+                        # X의 코드 배열 (정규화: strip + zfill)
+                        codes = X[temp_code_col].astype(str).str.strip().str.zfill(6).to_numpy()
                         # get_indexer를 사용하면 벡터화된 인덱싱이 가능
                         idx = keys.get_indexer(codes)
                         # idx == -1 은 없는 값 -> 0 채움
