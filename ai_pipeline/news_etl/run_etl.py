@@ -1,4 +1,3 @@
-from ai_pipeline.news_api.naver_api_client import fetch_news_urls
 from ai_pipeline.news_etl.news_crawler import fetch_article_text
 from ai_pipeline.nlp.text_splitter import split_text
 from ai_pipeline.nlp.sentiment import analyze_sentiment
@@ -16,4 +15,4 @@ def run_news_etl():
 
         save_news_to_es(url, text, chunks, sentiments)
 
-    print("📌 ETL 완료 (뉴스 → ES 저장)")
+    print(" ETL 완료 (뉴스 → ES 저장)")

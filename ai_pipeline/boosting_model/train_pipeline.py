@@ -1,6 +1,6 @@
 """
 통합 학습 파이프라인
-- 피처 생성 1회
+- 피처 생성 
 - Optuna 튜닝 (선택)
 - 모델 학습
 - 평가
@@ -26,7 +26,7 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
     - n_trials: Optuna trial 횟수 (do_tuning=True일 때만 사용)
     """
     print("="*60)
-    print("🚀 통합 학습 파이프라인 시작")
+    print(" 통합 학습 파이프라인 시작")
     print("="*60)
     
     # ============================================================
@@ -39,16 +39,20 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
     # 반환값 개수 유연하게 처리
     features = engineer.create_final_features()
 
+    if features is None:
+        print(" 피처 생성 실패")
+        return None, None
+
     if len(features) == 3:
         X, y, _ = features # 학습할 땐 종목코드(_) 필요 없음
     elif len(features) == 2:
         X, y = features
     else:
-        print("❌ 피처 생성 실패")
+        print(" 피처 생성 실패")
         return None, None
     
     if X is None:
-        print("❌ 피처 생성 실패")
+        print(" 피처 생성 실패")
         return None
     
     # ============================================================
@@ -82,11 +86,9 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
         # 저장
         with open('best_params.json', 'w') as f:
             json.dump(best_params, f, indent=2)
-        print("\n💾 최적 파라미터 저장: best_params.json")
+        print("\n 최적 파라미터 저장: best_params.json")
     else:
         print("\n[3단계] 하이퍼파라미터 튜닝 스킵")
-        print("-"*60)
-        print("   기본 파라미터 또는 기존 best_params.json 사용")
     
     # ============================================================
     # 4단계: 모델 학습
@@ -114,7 +116,7 @@ def run_full_training_pipeline(data_dir, do_tuning=False, n_trials=3):
     model.save_model(save_dir=target_model_dir)
     
     print("\n" + "="*60)
-    print("✅ 전체 파이프라인 완료!")
+    print(" 전체 파이프라인 완료!")
     print("="*60)
     
     return model, results

@@ -3,14 +3,14 @@ import re
 
 class StockMapper:
     def __init__(self):
-        print("📊 주식 종목 리스트 로딩 중... (KOSPI/KOSDAQ)")
+        print(" 주식 종목 리스트 로딩 중... (KOSPI/KOSDAQ)")
         self.stock_dict = self._load_stock_data()
         
         # [핵심 1] 긴 이름부터 먼저 검색하기 위해 길이 역순으로 정렬된 키 리스트 생성
         # 예: ['SK하이닉스', 'SK스퀘어', ..., 'SK'] 순서
         self.sorted_stock_names = sorted(self.stock_dict.keys(), key=len, reverse=True)
         
-        print(f"✅ 로딩 완료: 총 {len(self.stock_dict)}개 종목 감시 중")
+        print(f" 로딩 완료: 총 {len(self.stock_dict)}개 종목 감시 중")
         
     def _load_stock_data(self):
         """
@@ -43,7 +43,7 @@ class StockMapper:
             return stock_map
 
         except Exception as e:
-            print(f"❌ 주식 데이터 로딩 실패: {e}")
+            print(f" 주식 데이터 로딩 실패: {e}")
             return {}
 
     def extract_related_stocks(self, text):

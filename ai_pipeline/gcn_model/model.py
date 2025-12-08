@@ -1,28 +1,29 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GAE
 
-class NewsStockGCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
-        super(NewsStockGCN, self).__init__()
-        
-        # 첫 번째 층: 입력(3개 특징) -> 히든(16개 특징)으로 뻥튀기
-        # 그래프 정보를 섞는 핵심 층입니다.
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        
-        # 두 번째 층: 히든 -> 출력(Embedding Dimension)
-        self.conv2 = GCNConv(hidden_channels, out_channels)
+class GCNEncoder(torch.nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(GCNEncoder, self).__init__()
+        # Layer 1: 입력 특징 -> 128차원
+        self.conv1 = GCNConv(in_channels, 2 * out_channels)
+        # Layer 2: 128차원 -> 64차원 (최종 임베딩)
+        self.conv2 = GCNConv(2 * out_channels, out_channels)
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-
-        # 1. 첫 번째 그래프 합성곱 (Convolution)
+    def forward(self, x, edge_index):
+        # 1. 첫 번째 층 + ReLU + Dropout
         x = self.conv1(x, edge_index)
-        x = F.relu(x) # 활성화 함수 (비선형성 추가)
-        x = F.dropout(x, training=self.training) # 과적합 방지
-
-        # 2. 두 번째 그래프 합성곱
-        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = F.dropout(x, p=0.5, training=self.training)
         
-        # 결과값: 각 노드별로 새로 만들어진 '상태 벡터(Embedding)'
-        return x
+        # 2. 두 번째 층 (Linear) -> 여기서 나온 값이 'Node Embedding'이 됨
+        return self.conv2(x, edge_index)
+    
+def get_gae_model(in_channels, out_channels=64):
+    """외부에서 호출하기 편한 헬퍼 함수"""
+    encoder = GCNEncoder(in_channels, out_channels)
+    
+    # PyG의 GAE는 인코더만 넣어주면 디코더(InnerProduct)는 자동 생성됨
+    # 목적: Z(임베딩) * Z.T(전치) = Adjacency Matrix(인접행렬) 복원
+    model = GAE(encoder)
+    return model
