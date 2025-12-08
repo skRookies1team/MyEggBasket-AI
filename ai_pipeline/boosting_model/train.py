@@ -117,6 +117,14 @@ class StackingEnsemble:
         
         self.is_trained = True
         print("\n 스태킹 모델 학습 완료!")
+
+        # 학습 시 사용된 피처명 저장
+        try:
+            # X_train이 pandas DataFrame이면 컬럼명을 저장
+            if hasattr(X_train, 'columns'):
+                self.feature_names = list(X_train.columns)
+        except Exception:
+            self.feature_names = None
     
     #  predict_proba 추가 및 predict 표준화
     def predict_proba(self, X):
@@ -126,6 +134,19 @@ class StackingEnsemble:
         """
         if not self.is_trained:
             raise ValueError("모델이 학습되지 않았습니다.")
+
+        # 입력 X가 pandas DataFrame이면, 학습시 저장된 feature_names에 맞춤
+        try:
+            import pandas as _pd
+            if hasattr(self, 'feature_names') and self.feature_names is not None and isinstance(X, _pd.DataFrame):
+                # 누락된 칼럼은 0으로 채우고, 순서를 학습 피처 순서에 맞춤
+                missing = [c for c in self.feature_names if c not in X.columns]
+                for c in missing:
+                    X[c] = 0
+                # extra columns are ignored
+                X = X.reindex(columns=self.feature_names, fill_value=0)
+        except Exception:
+            pass
         
         # 1. Base Model 예측
         xgb_pred = self.xgb_model.predict_proba(X)[:, 1]
@@ -184,12 +205,29 @@ class StackingEnsemble:
         with open(os.path.join(save_dir, 'xgb_model.pkl'), 'wb') as f: pickle.dump(self.xgb_model, f)
         with open(os.path.join(save_dir, 'lgb_model.pkl'), 'wb') as f: pickle.dump(self.lgb_model, f)
         with open(os.path.join(save_dir, 'meta_model.pkl'), 'wb') as f: pickle.dump(self.meta_model, f)
+        # 학습에 사용된 피처명도 함께 저장 (있다면)
+        try:
+            if hasattr(self, 'feature_names') and self.feature_names is not None:
+                with open(os.path.join(save_dir, 'feature_names.json'), 'w', encoding='utf-8') as fh:
+                    json.dump(self.feature_names, fh, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
         print(f"\n 모델 저장 완료: {save_dir}/")
     
     def load_model(self, save_dir='models'):
         with open(os.path.join(save_dir, 'xgb_model.pkl'), 'rb') as f: self.xgb_model = pickle.load(f)
         with open(os.path.join(save_dir, 'lgb_model.pkl'), 'rb') as f: self.lgb_model = pickle.load(f)
         with open(os.path.join(save_dir, 'meta_model.pkl'), 'rb') as f: self.meta_model = pickle.load(f)
+        # 저장된 feature_names가 있으면 불러오기
+        try:
+            fn_path = os.path.join(save_dir, 'feature_names.json')
+            if os.path.exists(fn_path):
+                with open(fn_path, 'r', encoding='utf-8') as fh:
+                    self.feature_names = json.load(fh)
+        except Exception:
+            self.feature_names = None
+
         self.is_trained = True
         print(f" 모델 로드 완료: {save_dir}/")
 
@@ -252,6 +290,12 @@ def train_with_real_data(data_dir):
     
     # 3. 모델 학습
     model = StackingEnsemble()
+    # 학습에 사용된 피처명을 모델에 기록하여 저장
+    try:
+        model.feature_names = list(X_train.columns)
+    except Exception:
+        model.feature_names = None
+
     model.train(X_train, y_train)
     
     # 4. 테스트 평가

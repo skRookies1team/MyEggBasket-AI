@@ -178,6 +178,29 @@ class FeatureEngineer:
             if not self.es.ping(): self.es = None
         except:
             self.es = None
+        # 통합된 공시 데이터 로드 시도
+        self.disclosure_df = None
+        try:
+            disc_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../disclosure_pipeline/data/integrated_financial_data.csv"))
+            if os.path.exists(disc_path):
+                ddf = pd.read_csv(disc_path, encoding='utf-8-sig')
+                if 'stock_code' in ddf.columns:
+                    ddf['stock_code'] = ddf['stock_code'].astype(str).str.strip().str.zfill(6)
+                    # 최신 연도 우선(있다면)
+                    if 'bsns_year' in ddf.columns:
+                        try:
+                            ddf['bsns_year'] = pd.to_numeric(ddf['bsns_year'], errors='coerce').fillna(0).astype(int)
+                            ddf = ddf.sort_values('bsns_year', ascending=False).drop_duplicates('stock_code', keep='first')
+                        except Exception:
+                            pass
+                    # 숫자형 컬럼만 선택하여 인덱스 설정
+                    num_cols = ddf.select_dtypes(include=[np.number]).columns.tolist()
+                    keep_cols = ['stock_code'] + [c for c in num_cols if c != 'stock_code']
+                    if len(keep_cols) > 1:
+                        ddf = ddf[keep_cols].set_index('stock_code')
+                        self.disclosure_df = ddf
+        except Exception:
+            self.disclosure_df = None
     
     def _get_date_from_filename(self, filepath):
         basename = os.path.basename(filepath)
@@ -247,6 +270,36 @@ class FeatureEngineer:
         # 감성 점수 추가
         X = self.merge_sentiment_scores(X, stock_codes, csv_file)
         X = X.fillna(0)
+
+        # 공시 데이터 병합 (종목코드 기준) — 가능한 경우에만
+        try:
+            if self.disclosure_df is not None and temp_code_col in X.columns:
+                X[temp_code_col] = X[temp_code_col].astype(str).str.zfill(6)
+                # 대용량 병합 성능을 위해 컬럼별 매핑(map) 방식으로 병합
+                # disclosure_df는 index가 stock_code이며 숫자형 컬럼만 포함
+                # 인덱스와 값을 numpy로 미리 준비 (벡터화된 인덱싱)
+                disc_index = self.disclosure_df.index.astype(str)
+                for c in self.disclosure_df.columns:
+                    if c in X.columns:
+                        continue
+                    try:
+                        arr = self.disclosure_df[c].to_numpy()
+                        keys = disc_index
+                        # X의 코드 배열
+                        codes = X[temp_code_col].astype(str).to_numpy()
+                        # get_indexer를 사용하면 벡터화된 인덱싱이 가능
+                        idx = keys.get_indexer(codes)
+                        # idx == -1 은 없는 값 -> 0 채움
+                        import numpy as _np
+                        vals = _np.where(idx >= 0, arr[idx], 0)
+                        X[c] = vals
+                        # 안전하게 숫자형으로 변환
+                        X[c] = pd.to_numeric(X[c], errors='coerce').fillna(0)
+                    except Exception:
+                        if c in X.columns:
+                            del X[c]
+        except Exception:
+            pass
         
         return X, y, stock_codes
     

@@ -9,6 +9,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
 # 2. [핵심] 우리가 만든 '지휘자(전체 파이프라인)' 가져오기
 from ai_pipeline.pipeline_main import run_full_pipeline
+# 공시 수집 모듈(경량 호출용)
+try:
+    from ai_pipeline.disclosure_pipeline import collect_disclosures_to_csv as collect_mod
+except Exception:
+    collect_mod = None
 
 def job_wrapper():
     """
@@ -53,6 +58,34 @@ def start_scheduler():
         hour='18-23',
         minute='0',         # 정각마다
         id='night_mode'
+    )
+
+    # 3. [공시 수집] 매일 오전 09:00에 전날 공시 수집 (평일)
+    def collect_yesterday_job():
+        from datetime import datetime, timedelta
+        yest = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+        print(f"\n[스케줄러] 오전 09:00 공시 수집 트리거: 전날({yest}) 공시 수집 시작")
+        if collect_mod is None:
+            print(" 수집 모듈을 불러올 수 없습니다: ai_pipeline.disclosure_pipeline.collect_disclosures_to_csv")
+            return
+        try:
+            old_argv = sys.argv
+            try:
+                sys.argv = ['collect_disclosures_to_csv.py', '--date', yest]
+                collect_mod.main()
+            finally:
+                sys.argv = old_argv
+            print(f"[스케줄러] 전날({yest}) 공시 수집 완료")
+        except Exception as e:
+            print(f"[스케줄러] 공시 수집 중 오류: {e}")
+
+    sched.add_job(
+        collect_yesterday_job,
+        'cron',
+        day_of_week='mon-fri',
+        hour='9',
+        minute='0',
+        id='daily_disclosure_collect'
     )
 
     # ====================================================
