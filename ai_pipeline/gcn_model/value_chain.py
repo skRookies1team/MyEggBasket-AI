@@ -127,25 +127,7 @@ class ValueChainAnalyzer:
         return recommendations[:top_n]
     
 
-    '''
 
-    def explain_relation(self, stock_code_A, stock_code_B):
-        """두 종목 관계 설명"""
-        if self.df is None: return
-
-        rows_A = set(self.stock_to_rows.get(stock_code_A, []))
-        rows_B = set(self.stock_to_rows.get(stock_code_B, []))
-        common_rows = rows_A.intersection(rows_B)
-        
-        print(f"\n [관계 분석] {stock_code_A} ↔ {stock_code_B}")
-        if common_rows:
-            print("    같은 밸류체인 그룹에 속해 있습니다:")
-            for idx in common_rows:
-                print(f"      - [{self._get_category_name(self.df.iloc[idx])}]")
-        else:
-            print("    직접적인 밸류체인 공유 관계가 없습니다.")
-
-'''
 
 # 테스트 실행
 if __name__ == "__main__":

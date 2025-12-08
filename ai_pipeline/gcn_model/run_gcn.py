@@ -19,7 +19,7 @@ sys.path.append(project_root)
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GCNEncoder, self).__init__()
-        # [수정] 16차원 출력을 위해 중간 레이어를 64에서 32로 조정 (선택사항, 64 유지 가능)
+        # 16차원 출력을 위해 중간 레이어를 64에서 32로 조정
         self.conv1 = GCNConv(in_channels, 32) 
         self.conv2 = GCNConv(32, out_channels)
         self.dropout = nn.Dropout(p=0.3) 
@@ -61,7 +61,7 @@ def train_gcn():
     print(" ES에서 피처 조회 및 매핑 중...")
     found_count = 0
     
-    # [수정] 정확한 인덱스 이름 'stock_features_v1' 사용
+    # 정확한 인덱스 이름 'stock_features_v1' 사용
     target_index = "stock_features_v1"
 
     for i, code in enumerate(all_nodes):
@@ -79,7 +79,7 @@ def train_gcn():
             if resp['hits']['hits']:
                 hit = resp['hits']['hits'][0]['_source']
                 
-                # [수정] 감성 점수, Decay, 변동성 3가지 피처를 모두 활용
+                # 감성 점수, Decay, 변동성 3가지 피처를 모두 활용
                 # 데이터가 있으면 앞쪽 3개 차원에 덮어쓰기
                 score = hit.get('sentiment_score', 0.0)
                 decay = hit.get('sentiment_decay', 0.0)
@@ -110,7 +110,7 @@ def train_gcn():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # ---------------------------------------------------------
-    # [핵심 수정] out_channels를 64에서 16으로 변경!
+    # out_channels를 64에서 16으로 변경!
     # ---------------------------------------------------------
     model = GCNEncoder(in_channels=feature_dim, out_channels=16).to(device) 
     

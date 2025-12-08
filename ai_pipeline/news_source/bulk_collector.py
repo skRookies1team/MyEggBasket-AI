@@ -122,4 +122,6 @@ def run_date_range_collection(start_date_str, end_date_str):
 
 if __name__ == "__main__":
     # 2025년 10월 1일 ~ 오늘(2025-12-04)
-    run_date_range_collection("2025-11-08", "2025-12-06")
+    run_date_range_collection("2025-12-01", "2025-12-08")
+
+    
