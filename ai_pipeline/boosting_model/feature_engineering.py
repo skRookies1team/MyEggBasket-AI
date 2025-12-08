@@ -214,7 +214,12 @@ class FeatureEngineer:
                         disc_df = disc_df.rename(columns=new_cols)
                         self.disclosure_df = disc_df
                         try:
-                            print(f" 공시 데이터 로드됨: 종목 {self.disclosure_df.shape[0]}개, 컬럼 {self.disclosure_df.shape[1]}개 (경로: {disc_path})")
+                            print(f" 공시 데이터 로드됨: 종목 {self.disclosure_df.shape[0]}개, 컬럼 {self.disclosure_df.shape[1]}개")
+                            print(f"    경로: {disc_path}")
+                            print(f"    공시 피처 컬럼명 샘플: {list(self.disclosure_df.columns)[:20]}")
+                            if len(self.disclosure_df) > 0:
+                                print(f"    공시 데이터 샘플 (상위 3개):")
+                                print(self.disclosure_df.head(3).to_string())
                         except Exception:
                             pass
         except Exception:
@@ -363,6 +368,14 @@ class FeatureEngineer:
         
         # 안전장치: 숫자형 컬럼만 남기기
         final_X = final_X.select_dtypes(include=[np.number])
+        
+        # 공시 피처 포함 여부 확인 및 출력
+        disc_cols = [c for c in final_X.columns if c.startswith('disc_')]
+        if disc_cols:
+            print(f"\n ✓ 공시 피처가 최종 데이터셋에 포함되었습니다! (disc_ 접두사 컬럼: {len(disc_cols)}개)")
+            print(f"    공시 피처 목록: {disc_cols}")
+        else:
+            print(f"\n ⚠ 공시 피처가 최종 데이터셋에 포함되지 않았습니다 (disclosure_df가 비어있거나 병합 실패)")
         
         print(f"\n 통합 완료!")
         print(f" 총 파일 수: {len(csv_files)}개")
