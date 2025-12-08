@@ -11,7 +11,7 @@ from ai_pipeline.boosting_model.train import StackingEnsemble
 
 def run_prediction(csv_path=None):
     print("\n" + "="*60)
-    print("🔮 [Step 6] XGBoost/LightGBM 최종 예측 및 추천")
+    print(" [Step 6] XGBoost/LightGBM 최종 예측 및 추천")
     print("="*60)
 
     # 1. 모델 로드 경로 수정
@@ -21,16 +21,16 @@ def run_prediction(csv_path=None):
     
     # 모델 파일 존재 확인
     if not os.path.exists(os.path.join(model_dir, 'meta_model.pkl')):
-        print(f"⚠️ 학습된 모델이 없습니다. ({model_dir})")
+        print(f" 학습된 모델이 없습니다. ({model_dir})")
         print("   -> 먼저 train_pipeline.py를 실행해 모델을 만드세요.")
         return
 
     model = StackingEnsemble()
     try:
         model.load_model(model_dir)
-        print("✅ 학습된 Stacking 모델 로드 완료")
+        print(" 학습된 Stacking 모델 로드 완료")
     except Exception as e:
-        print(f"❌ 모델 로드 실패: {e}")
+        print(f" 모델 로드 실패: {e}")
         return
 
     # 2. 데이터 파일 경로 설정 (폴더 지원 추가)
@@ -47,10 +47,10 @@ def run_prediction(csv_path=None):
             csv_path = legacy_file_path
 
     if not csv_path or not os.path.exists(csv_path):
-        print(f"❌ 예측에 사용할 주식 데이터(폴더 또는 CSV)를 찾을 수 없습니다.")
+        print(f" 예측에 사용할 주식 데이터(폴더 또는 CSV)를 찾을 수 없습니다.")
         return
 
-    print(f"📊 데이터 로딩 및 피처 생성 중... ({os.path.basename(csv_path)})")
+    print(f" 데이터 로딩 및 피처 생성 중... ({os.path.basename(csv_path)})")
     
     # 3. 피처 엔지니어링
     try:
@@ -67,19 +67,19 @@ def run_prediction(csv_path=None):
         elif len(features_ret) == 2:
             X, stock_codes = features_ret    # 예측용 (X, codes)
         else:
-            print(f"❌ 피처 생성 반환값 오류: {len(features_ret)}개")
+            print(f" 피처 생성 반환값 오류: {len(features_ret)}개")
             return
 
     except Exception as e:
-        print(f"❌ 피처 생성 중 에러 발생: {e}")
+        print(f" 피처 생성 중 에러 발생: {e}")
         return
 
     if X is None or X.empty:
-        print("❌ 생성된 피처 데이터가 없습니다.")
+        print(" 생성된 피처 데이터가 없습니다.")
         return
 
     # 4. 예측 실행
-    print("🚀 AI 예측 실행 중...")
+    print(" AI 예측 실행 중...")
     
     try:
         # predict_proba를 사용하여 '상승 확률' 추출
@@ -93,23 +93,24 @@ def run_prediction(csv_path=None):
             
     except AttributeError:
         # predict_proba 미지원 시
-        print("⚠️ predict_proba 미지원 -> predict 결과 사용")
+        print(" predict_proba 미지원 -> predict 결과 사용")
         up_probs = model.predict(X)
 
     # 5. 결과 정리
     # 종목코드 6자리 포맷팅
     fmt_codes = [str(c).zfill(6) for c in stock_codes]
 
-    results_df = pd.DataFrame({
+    temp_df = pd.DataFrame({
         'stock_code': fmt_codes,
-        'ai_score': np.round(up_probs * 100, 2)
+        'ai_score': np.round(up_probs * 100, 2),
+        'original_index': range(len(fmt_codes)) # 순서 보존용
     })
 
-    # 점수 높은 순 정렬
-    top_picks = results_df.sort_values(by='ai_score', ascending=False).head(10)
+    final_df = temp_df.drop_duplicates(subset=['stock_code'], keep='last')
+    top_picks = final_df.sort_values(by='ai_score', ascending=False).head(10)
 
-    # 6. 결과 출력
-    print("\n🏆 [AI 강력 추천 종목 TOP 10]")
+    # 6. 결과 출력 (한 번만)
+    print("\n [AI 강력 추천 종목 TOP 10]")
     print("-" * 50)
     print(f"{'순위':<4} {'종목코드':<10} {'AI점수':<10} {'추천의견':<10}")
     print("-" * 50)
@@ -129,8 +130,8 @@ def run_prediction(csv_path=None):
     
     # (선택사항) 결과 파일 저장
     output_path = os.path.join(project_root, "final_prediction_result.csv")
-    results_df.to_csv(output_path, index=False, encoding='utf-8-sig')
-    print(f"✅ 전체 결과 저장 완료: {output_path}")
+    final_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+    print(f" 전체 결과 저장 완료: {output_path}")
 
 if __name__ == "__main__":
     run_prediction()

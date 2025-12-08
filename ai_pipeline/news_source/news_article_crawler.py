@@ -14,7 +14,7 @@ def fetch_article_text(url):
     }
     
     try:
-        time.sleep(random.uniform(0.3, 1.0)) # 대기 시간
+        time.sleep(random.uniform(0.2, 0.5)) # 대기 시간
         
         response = requests.get(url, headers=headers)
         
@@ -30,65 +30,61 @@ def fetch_article_text(url):
         text_data = response.text
 
         # ============================================================
-        # 🚨 [핵심 추가] 자바스크립트 리다이렉트 감지 및 처리
+        #  [핵심 추가] 자바스크립트 리다이렉트 감지 및 처리
         # ============================================================
         # <SCRIPT>top.location.href='...';</SCRIPT> 패턴이 있는지 검사
         if "top.location.href" in text_data:
-            print("🔄 리다이렉트 감지! 실제 기사 페이지로 이동합니다...")
-            
-            # URL 추출 (작은 따옴표 안의 주소를 꺼냄)
             match = re.search(r"top\.location\.href='(.*?)'", text_data)
             if match:
-                new_url = match.group(1)
-                print(f"   ➡ 이동할 주소: {new_url}")
-                
-                # [재귀 호출] 추출한 새 주소로 다시 크롤링 시도
-                return fetch_article_text(new_url)
-        # ============================================================
+                return fetch_article_text(match.group(1))
 
         soup = BeautifulSoup(text_data, "html.parser")
         content = None
         
         # 태그 찾기 (우선순위별)
+
+        # 1. 제목 추출 
+        title = ""
+        title_tag = soup.select_one(".article_info h3, #articleTitle, h2.end_tit")
+        if title_tag:
+            title = title_tag.get_text(strip=True)
+        else:
+            meta_title = soup.select_one("meta[property='og:title']")
+            if meta_title:
+                title = meta_title['content']
+
+
         # 1. 네이버 금융 본문
+        content = None
+        # 1. 네이버 금융
         candidate = soup.select_one(".articleCont")
         if candidate:
-            for tag in candidate.select(".link_news, .guide, script"): # 불필요 태그 삭제
+            for tag in candidate.select(".link_news, .guide, script, .img_desc"):
                 tag.decompose()
             content = candidate.get_text(separator=" ", strip=True)
 
-        # 2. 네이버 뉴스(일반) 본문 (리다이렉트 된 곳은 보통 여기임)
+        # 2. 네이버 뉴스 (일반)
         if not content:
             candidate = soup.select_one("#dic_area")
             if candidate:
                 for tag in candidate.select(".img_desc, .end_photo_org"):
                     tag.decompose()
                 content = candidate.get_text(separator=" ", strip=True)
-
-        # 3. 스포츠/연예 등 기타
-        if not content:
-            candidate = soup.select_one("#articeBody")
-            if candidate:
-                content = candidate.get_text(separator=" ", strip=True)
         
-        # 4. 구형 레이아웃
+        # 3. 기타
         if not content:
-            candidate = soup.select_one("#content")
+            candidate = soup.select_one("#articeBody, #content")
             if candidate:
                 content = candidate.get_text(separator=" ", strip=True)
 
-        if content:
-            # 너무 짧으면 광고나 에러일 수 있음
-            if len(content) < 30: 
-                return None
-            return content
+        # --- [핵심 수정] 튜플(제목, 본문) 반환 ---
+        if title and content and len(content) >= 30:
+            return title, content  # (제목, 본문) 튜플 반환
         else:
-            # 리다이렉트도 아니고, 본문도 없으면 진짜 실패
-            print("❌ 본문 태그 찾기 실패")
             return None
 
     except Exception as e:
-        print(f"❌ 크롤링 에러: {e}")
+        # print(f" 크롤링 에러: {e}") # 로그가 너무 많으면 주석 처리
         return None
     
     

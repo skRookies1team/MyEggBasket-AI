@@ -44,12 +44,12 @@ class PortfolioAnalyzer:
             
             if os.path.exists(model_path):
                 self.model.load_model(model_dir)
-                print(f"✅ 모델 로드 완료: {model_dir}")
+                print(f" 모델 로드 완료: {model_dir}")
             else:
                 raise FileNotFoundError("모델 파일 없음")
                 
         except Exception as e:
-            print(f"⚠️ [System] 모델 로드 실패 ({e}) -> 가상 모드 전환")
+            print(f" [System] 모델 로드 실패 ({e}) -> 가상 모드 전환")
             self.model = self._create_mock_model()
             self.use_mock = True
 
@@ -89,7 +89,7 @@ class PortfolioAnalyzer:
                 else:
                     X = None
             except Exception as e:
-                print(f"⚠️ 피처 생성 오류: {e}")
+                print(f" 피처 생성 오류: {e}")
                 X = None
 
         # 2. 데이터 없을 시 가상 데이터
@@ -164,7 +164,7 @@ class PortfolioAnalyzer:
             missing_codes = set(filter_codes) - existing_codes
 
             if missing_codes:
-                print(f"   ⚠️ CSV 데이터 미포함 종목: {missing_codes} (점수 예측 불가)")
+                print(f"    CSV 데이터 미포함 종목: {missing_codes} (점수 예측 불가)")
                 # 누락 종목은 점수 0점 또는 NaN으로 추가 표시
                 missing_data = []
                 for code in missing_codes:
@@ -204,7 +204,7 @@ class PortfolioAnalyzer:
         [기능 3] 투자 성향별 종목 추천 알고리즘
         style: 'conservative'(안정), 'aggressive'(공격), 'momentum'(추세), 'reversal'(저점매수)
         """
-        print(f"\n🔍 [{style.upper()}] 성향 맞춤 추천 분석 중...")
+        print(f"\n [{style.upper()}] 성향 맞춤 추천 분석 중...")
         
         df = self._get_market_data()
         if df is None or df.empty: return []
@@ -282,35 +282,35 @@ if __name__ == "__main__":
         # [상황] 사용자가 '삼성전자'를 가지고 있음
         my_portfolio = ['005930'] 
         
-        print(f"\n💼 보유 종목: {my_portfolio}")
+        print(f"\n 보유 종목: {my_portfolio}")
 
         # 1. 보유 종목 기반 추천 (밸류체인)
-        print("\n1️⃣ [밸류체인] 보유 종목과 연관된 추천")
+        print("\n [밸류체인] 보유 종목과 연관된 추천")
         for stock in my_portfolio:
             recs = analyzer.analyze_value_chain(stock)
             # recs가 None이거나 비어있을 수 있으므로 체크
             if recs:
                 for r in recs:
-                    print(f"   👉 {r['name']} ({r['code']}) - {r['reason']}")
+                    print(f"    {r['name']} ({r['code']}) - {r['reason']}")
             else:
-                print("   ⚠️ 연관 종목을 찾을 수 없습니다.")
+                print("    연관 종목을 찾을 수 없습니다.")
 
         # 2. 투자 성향별 추천 (신규 발굴)
-        print("\n2️⃣ [투자성향] 새로운 종목 발굴")
+        print("\n [투자성향] 새로운 종목 발굴")
         
         # 안정형 추천
         conservative = analyzer.recommend_by_style('conservative', top_n=3, exclude_codes=my_portfolio)
         if conservative:
-            print(f"   🛡️ 안정형 추천: {[r['code'] for r in conservative]}")
+            print(f"    안정형 추천: {[r['code'] for r in conservative]}")
         else:
-            print("   🛡️ 안정형 추천 종목 없음")
+            print("    안정형 추천 종목 없음")
         
         # 줍줍형 추천
         reversal = analyzer.recommend_by_style('reversal', top_n=3, exclude_codes=my_portfolio)
         if reversal:
-            print(f"   💎 줍줍형 추천: {[r['code'] for r in reversal]}")
+            print(f"    줍줍형 추천: {[r['code'] for r in reversal]}")
         else:
-            print("   💎 줍줍형 추천 종목 없음")
+            print("    줍줍형 추천 종목 없음")
 
     else:
-        print(f"❌ 파일을 찾을 수 없습니다: {csv_path}")
+        print(f" 파일을 찾을 수 없습니다: {csv_path}")

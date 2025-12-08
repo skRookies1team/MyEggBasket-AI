@@ -12,273 +12,394 @@ from elasticsearch import Elasticsearch
 # 프로젝트 루트 경로
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
-from ai_pipeline.boosting_model.realtime_feature_loader import RealtimeFeatureLoader
+# 필요한 클래스 import (없으면 무시)
+try:
+    from ai_pipeline.boosting_model.realtime_feature_loader import RealtimeFeatureLoader
+    from ai_pipeline.boosting_model.feature_expander import FeatureExpander
+except ImportError:
+    pass
 
-class FeatureEngineer:
-    """
-    체결 정보 + GCN 임베딩 + 뉴스 감성 점수(FinBERT) 결합
-    """
-    
-    def __init__(self, data_dir=None):
-        self.gcn_embeddings = None
-        self.stock_mapping = None
-        self.data_dir = data_dir
+# GAE 모델 로드
+try:
+    from ai_pipeline.gcn_model.model import get_gae_model
+except ImportError:
+    print(" GCN 모델 파일을 찾을 수 없습니다. (ai_pipeline/gcn_model/model.py 확인 필요)")
+    get_gae_model = None
+
+# =========================================================
+# ✅ GCN 로더 클래스
+# =========================================================
+class GCNFeatureExtractor:
+    def __init__(self, model_path=None):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # ES 클라이언트 연결
+        # 1. 데이터 파일(.pt) 로드
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        pt_path = os.path.abspath(os.path.join(current_dir, "../../finance_graph_data.pt"))
+        
+        if not os.path.exists(pt_path):
+            print(f" [GCN] 데이터 파일이 없습니다: {pt_path}")
+            self.data = None
+            return
+
+        try:
+            # ✅ [핵심 수정] PyTorch 2.6+ 보안 경고 우회 (weights_only=False 명시)
+            # 그래프 데이터 구조체(Data)는 단순 가중치가 아니므로 False여야 함
+            self.data = torch.load(pt_path, map_location=self.device, weights_only=False)
+        except TypeError:
+            # 구버전 PyTorch 호환용
+            self.data = torch.load(pt_path, map_location=self.device)
+        except Exception as e:
+            print(f" [GCN] 데이터 로드 실패: {e}")
+            self.data = None
+            return
+
+        # 2. 모델 초기화 (NewsStockGCN -> get_gae_model 로 변경)
+        # 데이터의 피처 수(x.shape[1])를 입력 차원으로 설정
+        if self.data is not None and get_gae_model is not None:
+            num_features = self.data.x.shape[1]
+            # 출력 차원은 학습시 설정한 값 (보통 16 또는 64)
+            self.model = get_gae_model(in_channels=num_features, out_channels=16).to(self.device)
+        else:
+            self.model = None
+            return
+        
+        # 3. 모델 가중치 로드
+        if model_path is None:
+            # 경로 자동 탐색
+            model_path = os.path.abspath(os.path.join(current_dir, "../../best_gcn_model.pth"))
+            
+        if os.path.exists(model_path):
+            try:
+                # strict=False로 형상이 약간 달라도 로드 시도
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True), strict=False)
+                self.model.eval()
+            except Exception as e:
+                print(f" 모델 가중치 로드 실패 (초기화 상태 사용): {e}")
+                self.model.eval()
+        else:
+            print(" 학습된 모델 파일이 없습니다. (초기화 상태 사용)")
+            self.model.eval()
+
+    def _load_json_mapping(self):
+        """JSON 매핑 파일 로드"""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        target_path = os.path.abspath(os.path.join(current_dir, "../../ai_pipeline/graph_build/node_mapping.json"))
+        
+        if not os.path.exists(target_path):
+             target_path = os.path.abspath(os.path.join(current_dir, "../../node_mapping.json"))
+
+        if os.path.exists(target_path):
+            try:
+                with open(target_path, 'r', encoding='utf-8') as f:
+                    mapping = json.load(f) 
+                    return {int(v): k for k, v in mapping.items()}
+            except Exception:
+                pass
+        return None
+
+    def get_embeddings(self):
+        if self.data is None or self.model is None: return {}
+
+        with torch.no_grad():
+            # ✅ [수정] GAE 모델은 encode 메서드를 사용해야 함
+            try:
+                embeddings = self.model.encode(self.data.x, self.data.edge_index)
+            except AttributeError:
+                # 일반 GCN일 경우 forward 호출
+                embeddings = self.model(self.data.x, self.data.edge_index)
+                
+        emb_np = embeddings.cpu().numpy()
+        
+        mapping = {}
+        
+        # 1순위: .pt 파일 내장 정보
+        if hasattr(self.data, 'stock_to_idx'):
+            idx_to_stock = {v: k for k, v in self.data.stock_to_idx.items()}
+        # 2순위: JSON 파일
+        else:
+            idx_to_stock = self._load_json_mapping()
+            
+        if idx_to_stock:
+            for idx, vector in enumerate(emb_np):
+                if idx in idx_to_stock:
+                    code = idx_to_stock[idx]
+                    mapping[code] = vector
+        else:
+            print("  매핑 정보 없음: GCN 피처를 사용할 수 없습니다.")
+            
+        return mapping
+
+    def add_gcn_features(self, df, code_col='code'):
+        target_col = code_col
+        # 컬럼 이름 정규화
+        if 'stck_shrn_iscd' in df.columns: target_col = 'stck_shrn_iscd'
+        elif 'code' in df.columns: target_col = 'code'
+        elif 'stock_code' in df.columns: target_col = 'stock_code'
+            
+        emb_dict = self.get_embeddings()
+        if not emb_dict: 
+            return df
+
+        # Dict -> DataFrame
+        emb_df = pd.DataFrame.from_dict(emb_dict, orient='index')
+        emb_df.columns = [f'gcn_emb_{i}' for i in range(emb_df.shape[1])]
+        emb_df.index.name = target_col
+        emb_df = emb_df.reset_index()
+        
+        # 타입 통일 (문자열)
+        df[target_col] = df[target_col].astype(str).str.strip().str.zfill(6)
+        emb_df[target_col] = emb_df[target_col].astype(str).str.strip().str.zfill(6)
+        
+        merged_df = pd.merge(df, emb_df, on=target_col, how='left')
+        
+        gcn_cols = [c for c in merged_df.columns if c.startswith('gcn_')]
+        merged_df[gcn_cols] = merged_df[gcn_cols].fillna(0)
+        
+        return merged_df
+
+
+# =========================================================
+# ✅ 메인 FeatureEngineer 클래스
+# =========================================================
+class FeatureEngineer:
+    def __init__(self, data_dir=None, csv_path=None):
+        self.data_dir = data_dir
+        self.csv_path = csv_path 
+        try:
+            self.expander = FeatureExpander()
+        except Exception:
+            # ta 라이브러리 등 의존성 문제로 FeatureExpander가 로드되지 않을 수 있음
+            # 이 경우 확장 기능 없이 기본 피처만 사용하도록 None으로 설정
+            self.expander = None
+        try:
+            self.gcn_loader = GCNFeatureExtractor()
+        except Exception as e:
+            print(f" GCN 로더 초기화 실패: {e}")
+            self.gcn_loader = None
+
         try:
             self.es = Elasticsearch("http://localhost:9200")
-            if not self.es.ping():
-                self.es = None
+            if not self.es.ping(): self.es = None
         except:
             self.es = None
-            print("⚠️ Elasticsearch 연결 실패 (감성 점수 0점 처리)")
+        # 통합된 공시 데이터 로드 시도
+        self.disclosure_df = None
+        try:
+            disc_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../disclosure_pipeline/data/integrated_financial_data.csv"))
+            if os.path.exists(disc_path):
+                ddf = pd.read_csv(disc_path, encoding='utf-8-sig')
+                if 'stock_code' in ddf.columns:
+                    ddf['stock_code'] = ddf['stock_code'].astype(str).str.strip().str.zfill(6)
+                    # 최신 연도 우선(있다면)
+                    if 'bsns_year' in ddf.columns:
+                        try:
+                            ddf['bsns_year'] = pd.to_numeric(ddf['bsns_year'], errors='coerce').fillna(0).astype(int)
+                            ddf = ddf.sort_values('bsns_year', ascending=False).drop_duplicates('stock_code', keep='first')
+                        except Exception:
+                            pass
+                    # 숫자형 컬럼만 선택하여 인덱스 설정
+                    num_cols = ddf.select_dtypes(include=[np.number]).columns.tolist()
+                    keep_cols = ['stock_code'] + [c for c in num_cols if c != 'stock_code']
+                    if len(keep_cols) > 1:
+                        # 접두사로 공시 컬럼을 구분합니다 (충돌 방지)
+                        disc_df = ddf[keep_cols].set_index('stock_code')
+                        # 숫자형 컬럼 이름에 접두사 추가 (stock_code 제외)
+                        new_cols = {}
+                        for c in disc_df.columns:
+                            if c == 'stock_code':
+                                new_cols[c] = c
+                            else:
+                                new_cols[c] = f"disc_{c}"
+                        disc_df = disc_df.rename(columns=new_cols)
+                        self.disclosure_df = disc_df
+                        try:
+                            print(f" 공시 데이터 로드됨: 종목 {self.disclosure_df.shape[0]}개, 컬럼 {self.disclosure_df.shape[1]}개")
+                            print(f"    경로: {disc_path}")
+                            print(f"    공시 피처 컬럼명 샘플: {list(self.disclosure_df.columns)[:20]}")
+                            if len(self.disclosure_df) > 0:
+                                print(f"    공시 데이터 샘플 (상위 3개):")
+                                print(self.disclosure_df.head(3).to_string())
+                        except Exception:
+                            pass
+        except Exception:
+            self.disclosure_df = None
     
-    def load_gcn_embeddings(self):
-        """저장된 GCN 임베딩 로드"""
-        current_dir = os.path.dirname(__file__)
-        root_dir = os.path.abspath(os.path.join(current_dir, "../../"))
-        embedding_path = os.path.join(root_dir, "gcn_node_embeddings.pt")
-        
-        if not os.path.exists(embedding_path):
-            return None
-        
-        # CPU 환경 호환성 확보
-        self.gcn_embeddings = torch.load(embedding_path, map_location=torch.device('cpu'), weights_only=True)
-        return self.gcn_embeddings
-    
-    def load_stock_mapping(self):
-        """종목 코드 매핑 로드"""
-        mapping_path = os.path.join(os.path.dirname(__file__), "../graph_build/node_mapping.json")
-        
-        if not os.path.exists(mapping_path):
-            return None
-        
-        with open(mapping_path, 'r', encoding='utf-8') as f:
-            idx_to_node = json.load(f)
-        
-        self.stock_mapping = {}
-        for idx, node_id in idx_to_node.items():
-            if node_id.isdigit():
-                self.stock_mapping[node_id] = int(idx)
-        return self.stock_mapping
-
     def _get_date_from_filename(self, filepath):
-        """파일 경로에서 날짜 추출 (20251120.csv -> datetime 객체)"""
         basename = os.path.basename(filepath)
         match = re.search(r'(\d{8})', basename)
         if match:
-            d_str = match.group(1)
             try:
-                return datetime.strptime(d_str, "%Y%m%d")
-            except:
-                return None
+                return datetime.strptime(match.group(1), "%Y%m%d")
+            except: pass
         return None
 
     def merge_sentiment_scores(self, X, stock_codes, current_file_path):
-        """
-        [핵심] ES에 저장된 FinBERT 감성 점수를 가져와 병합
-        - 성능 최적화: 개별 쿼리 대신 Aggregation 사용
-        """
-        print("\n📰 뉴스 감성 점수(FinBERT) 병합 중...")
-        
-        # 기본값 0.0 (중립)으로 초기화
+        if isinstance(stock_codes, pd.Series): stock_codes = stock_codes.tolist()
         X['sentiment_score'] = 0.0
-        
-        if not self.es:
-            return X
+        if not self.es: return X
 
-        # 1. 해당 CSV 파일의 날짜 추출
         target_date = self._get_date_from_filename(current_file_path)
-        
         if target_date:
-            # 해당 날짜 기준 과거 48시간 뉴스 조회
             end_dt = target_date.replace(hour=23, minute=59, second=59)
             start_dt = end_dt - timedelta(days=2)
-            
-            range_filter = {
-                "range": {
-                    "timestamp": {
-                        "gte": start_dt.isoformat(),
-                        "lte": end_dt.isoformat()
-                    }
-                }
-            }
+            range_filter = {"range": {"timestamp": {"gte": start_dt.isoformat(), "lte": end_dt.isoformat()}}}
         else:
-            # 날짜 파싱 실패 시 전체 뉴스 (비상시)
             range_filter = {"match_all": {}}
 
         try:
-            # 2. ES Aggregation 쿼리 (종목별 평균 점수 산출)
-            # 'related_stocks' 필드에 있는 종목코드로 그룹핑 -> sentiment_score 평균
             body = {
-                "size": 0, # 개별 문서는 안 가져옴
-                "query": range_filter,
+                "size": 0, "query": range_filter,
                 "aggs": {
                     "by_stock": {
-                        "terms": {
-                            "field": "related_stocks.keyword",
-                            "size": 3000 # 충분히 크게
-                        },
-                        "aggs": {
-                            "avg_sentiment": {
-                                "avg": {"field": "sentiment_score"}
-                            }
-                        }
+                        "terms": {"field": "related_stocks.keyword", "size": 3000},
+                        "aggs": {"avg_sentiment": {"avg": {"field": "sentiment_score"}}}
                     }
                 }
             }
-            
             resp = self.es.search(index="news_articles", body=body)
-            buckets = resp['aggregations']['by_stock']['buckets']
-            
-            # 3. 결과 매핑 (Dict 변환)
-            # 예: {'005930': 0.45, '000660': -0.12}
-            score_map = {}
-            for b in buckets:
-                code = b['key']
-                score = b['avg_sentiment']['value']
-                if score is not None:
-                    score_map[code] = score
-            
-            print(f"   📊 뉴스 데이터 매칭: {len(score_map)}개 종목 감성 점수 확보")
-            
-            # 4. DataFrame에 매핑 적용
-            # stock_codes 리스트 순서대로 점수 매핑
-            sentiment_list = []
-            for code in stock_codes:
-                # 6자리 포맷 통일 (005930)
-                code_str = str(code).zfill(6)
-                score = score_map.get(code_str, 0.0) # 뉴스 없으면 0점
-                sentiment_list.append(score)
-            
-            X['sentiment_score'] = sentiment_list
-            print(f"✅ 감성 점수 병합 완료 (전체 평균: {np.mean(sentiment_list):.4f})")
-            
-        except Exception:
-            pass # 에러 시 0점 유지
-            
+            # 안전하게 버킷 접근
+            if 'aggregations' in resp and 'by_stock' in resp['aggregations']:
+                buckets = resp['aggregations']['by_stock']['buckets']
+                score_map = {b['key']: b['avg_sentiment']['value'] for b in buckets if b['avg_sentiment']['value'] is not None}
+                
+                sentiment_list = [score_map.get(str(code).zfill(6), 0.0) for code in stock_codes]
+                X['sentiment_score'] = sentiment_list
+        except: pass 
         return X
 
-    def merge_gcn_embeddings(self, X, stock_codes):
-        """GCN 임베딩 병합 (고속 벡터화)"""
-        print("\n🔗 GCN 임베딩 병합 중...")
-        if self.gcn_embeddings is None: self.load_gcn_embeddings()
-        if self.stock_mapping is None: self.load_stock_mapping()
-        
-        if self.gcn_embeddings is None: return X
-        
-        emb_dim = self.gcn_embeddings.shape[1]
-        emb_cols = [f'gcn_emb_{i}' for i in range(emb_dim)]
-        
-        emb_list = []
-        zero_emb = np.zeros(emb_dim)
-        gcn_emb_numpy = self.gcn_embeddings.numpy()
-        
-        for code in stock_codes:
-            str_code = str(code).zfill(6)
-            if str_code in self.stock_mapping:
-                node_idx = self.stock_mapping[str_code]
-                emb_list.append(gcn_emb_numpy[node_idx])
-            else:
-                emb_list.append(zero_emb)
-
-        emb_df = pd.DataFrame(emb_list, columns=emb_cols, index=X.index)
-        X_final = pd.concat([X, emb_df], axis=1)
-        
-        print(f"✅ GCN 임베딩 병합 완료")
-        return X_final
-    
-
     def _process_single_file(self, csv_file):
-        """[내부 함수] 파일 1개를 처리하여 피처셋 반환"""
-        print(f"   📄 처리 중: {os.path.basename(csv_file)}")
-        
+        print(f" 처리 중: {os.path.basename(csv_file)}")
         loader = RealtimeFeatureLoader(csv_file)
         try:
             load_result = loader.prepare_features()
-            if len(load_result) == 3:
-                X, y, stock_codes = load_result
-            else:
-                X, y = load_result
-                stock_codes = []
-        except:
-            return None, None, None
+            if len(load_result) == 3: X, y, stock_codes = load_result
+            else: X, y = load_result; stock_codes = []
+        except: return None, None, None
         
         if X is None or X.empty: return None, None, None
         
-        # GCN 병합
-        X = self.merge_gcn_embeddings(X, stock_codes)
-        # 감성 점수 병합 (파일 날짜 기준)
+        # 병합을 위해 임시로 종목코드 추가
+        temp_code_col = 'stck_shrn_iscd'
+        X[temp_code_col] = stock_codes
+        
+        # 기술적 지표 추가
+        if self.expander:
+            X = self.expander.add_technical_indicators(X)
+        
+        # GCN 피처 추가
+        if self.gcn_loader:
+            X = self.gcn_loader.add_gcn_features(X, code_col=temp_code_col)
+            
+        # 감성 점수 추가
         X = self.merge_sentiment_scores(X, stock_codes, csv_file)
+        X = X.fillna(0)
+
+        # 공시 데이터 병합 (종목코드 기준) — 가능한 경우에만
+        try:
+            if self.disclosure_df is not None and temp_code_col in X.columns:
+                X[temp_code_col] = X[temp_code_col].astype(str).str.zfill(6)
+                # 대용량 병합 성능을 위해 컬럼별 매핑(map) 방식으로 병합
+                # disclosure_df는 index가 stock_code이며 숫자형 컬럼만 포함
+                # 인덱스와 값을 numpy로 미리 준비 (벡터화된 인덱싱)
+                disc_index = self.disclosure_df.index.astype(str).str.strip().str.zfill(6)
+                for c in self.disclosure_df.columns:
+                    try:
+                        arr = self.disclosure_df[c].to_numpy()
+                        keys = disc_index
+                        # X의 코드 배열 (정규화: strip + zfill)
+                        codes = X[temp_code_col].astype(str).str.strip().str.zfill(6).to_numpy()
+                        # get_indexer를 사용하면 벡터화된 인덱싱이 가능
+                        idx = keys.get_indexer(codes)
+                        # idx == -1 은 없는 값 -> 0 채움
+                        import numpy as _np
+                        vals = _np.where(idx >= 0, arr[idx], 0)
+                        X[c] = vals
+                        # 안전하게 숫자형으로 변환
+                        X[c] = pd.to_numeric(X[c], errors='coerce').fillna(0)
+                    except Exception:
+                        if c in X.columns:
+                            del X[c]
+        except Exception:
+            pass
         
         return X, y, stock_codes
     
-    
     def create_final_features(self):
-        """
-        폴더 내의 모든 CSV를 읽어서 하나로 합칩니다.
-        """
         print("\n" + "="*60)
-        print(f"🏗️ 통합 데이터셋 생성 시작 (폴더: {self.data_dir})")
+        print(f" 통합 데이터셋 생성 시작")
         print("="*60)
         
-        if self.data_dir is None: raise ValueError("데이터 폴더 경로가 없습니다.")
-        
-        # 1. 파일 목록 찾기 (폴더면 *.csv 검색, 파일이면 그 파일만)
-        if os.path.isdir(self.data_dir):
+        csv_files = []
+        if self.csv_path and os.path.exists(self.csv_path):
+            csv_files = [self.csv_path]
+        elif self.data_dir and os.path.isdir(self.data_dir):
+            # ✅ [수정] 파일명 패턴 완화: 모든 csv 파일 대상
             all_csvs = glob.glob(os.path.join(self.data_dir, "*.csv"))
-            
-            # 파일명 필터링 (숫자 8자리.csv 만 통과)
-            csv_files = []
-            for f in all_csvs:
-                basename = os.path.basename(f)
-                # 정규식: 숫자 8개 + .csv 로 끝나는지 확인
-                if re.match(r'^\d{8}\.csv$', basename):
-                    csv_files.append(f)
-                else:
-                    print(f"   ⚠️ [Skip] 주가 데이터 아님: {basename}")
-            
+            # 필요한 경우 파일명 필터링 (예: KRX나 날짜가 포함된 것)
+            csv_files = [f for f in all_csvs if 'KRX' in f or re.search(r'\d{8}', f)]
             csv_files.sort()
-            
-        elif os.path.isfile(self.data_dir):
-            csv_files = [self.data_dir]
         else:
+            print(" 처리할 CSV 파일이나 데이터 폴더가 지정되지 않았습니다.")
             return None, None, None
 
         if not csv_files:
-            print("❌ 처리할 주가 데이터 CSV가 없습니다.")
+            print(f" '{self.data_dir}' 경로에 CSV 파일이 없습니다.")
             return None, None, None
 
-        # 2. 모든 파일 순회하며 데이터 수집
-        all_X = []
-        all_y = []
-        all_codes = [] 
-        
+        all_X, all_y, all_codes = [], [], []
         for f in csv_files:
             X_part, y_part, codes_part = self._process_single_file(f)
             if X_part is not None:
                 all_X.append(X_part)
                 all_y.append(y_part)
-                all_codes.append(codes_part) # 마지막 파일 기준
+                all_codes.extend(codes_part)
 
-        if not all_X:
-            return None, None, None
+        if not all_X: return None, None, None
 
-        # 3. 데이터 합치기 (Concatenate)
         final_X = pd.concat(all_X, ignore_index=True)
         final_y = pd.concat(all_y, ignore_index=True)
-
-        final_codes = pd.concat(all_codes, ignore_index=True)
+        final_codes = pd.Series(all_codes, name='stck_shrn_iscd')
         
-        print(f"\n✅ 통합 완료!")
-        print(f"   총 파일 수: {len(csv_files)}개")
-        print(f"   총 샘플 수: {len(final_X):,}")
-        print(f"   타겟 분포(1=상승): {(final_y==1).sum():,}개 ({(final_y==1).sum()/len(final_y)*100:.1f}%)")
+        print("\n 모델 입력을 위한 데이터 클리닝 (문자열 제거)...")
+        
+        drop_cols = ['stck_shrn_iscd', 'stock_code', 'code', 'date', 'timestamp']
+        final_X = final_X.drop(columns=[c for c in drop_cols if c in final_X.columns], errors='ignore')
+        
+        # 안전장치: 숫자형 컬럼만 남기기
+        final_X = final_X.select_dtypes(include=[np.number])
+        
+        # 공시 피처 포함 여부 확인 및 출력
+        disc_cols = [c for c in final_X.columns if c.startswith('disc_')]
+        if disc_cols:
+            print(f"\n ✓ 공시 피처가 최종 데이터셋에 포함되었습니다! (disc_ 접두사 컬럼: {len(disc_cols)}개)")
+            print(f"    공시 피처 목록: {disc_cols}")
+        else:
+            print(f"\n ⚠ 공시 피처가 최종 데이터셋에 포함되지 않았습니다 (disclosure_df가 비어있거나 병합 실패)")
+        
+        print(f"\n 통합 완료!")
+        print(f" 총 파일 수: {len(csv_files)}개")
+        print(f" 총 샘플 수: {len(final_X):,}")
+        print(f" 최종 피처 수: {len(final_X.columns)}개")
         print("="*60)
         
         return final_X, final_y, final_codes
 
 if __name__ == "__main__":
-    data_dir = r"C:\Users\user\project\MyEggBasket-AI\data"
-    engineer = FeatureEngineer(data_dir=data_dir)
-    X, y, _ = engineer.create_final_features()
+    # 데이터 폴더 경로 확인하세요!
+    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/krx_data"))
+    
+    if not os.path.exists(data_dir):
+        # 경로가 없으면 기본 data 폴더로 시도
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+
+    if os.path.exists(data_dir):
+        engineer = FeatureEngineer(data_dir=data_dir)
+        X, y, _ = engineer.create_final_features()
+        if X is not None:
+            # 저장
+            save_path = os.path.join(os.path.dirname(data_dir), "final_train_data.csv")
+            final_df = pd.concat([X, y], axis=1)
+            final_df.to_csv(save_path, index=False)
+            print(f" {save_path} 에 저장 완료")
+            print(X.dtypes)

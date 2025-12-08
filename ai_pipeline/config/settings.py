@@ -4,9 +4,23 @@ from dotenv import load_dotenv
 # .env 파일 로드
 load_dotenv()
 
-# ==========================================
-# 1. 네이버 API 설정
-# ==========================================
+# 확인용 로그
+#print("🔍 settings.py PROJECT_ROOT =", PROJECT_ROOT)
+
+# .env 로드
+env_path = PROJECT_ROOT / ".env"
+#print("🔍 .env path =", env_path, ", exists =", env_path.exists())
+
+load_dotenv(dotenv_path=env_path, verbose=True)
+
+# 환경변수 확인
+#print(" Loaded NAVER_CLIENT_ID =", os.getenv("NAVER_CLIENT_ID"))
+#print(" Loaded NAVER_CLIENT_SECRET =", os.getenv("NAVER_CLIENT_SECRET"))
+
+# Elasticsearch 설정
+ES_HOST = os.getenv("ES_HOST", "http://localhost:9200")
+
+# 네이버 API 설정
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
 

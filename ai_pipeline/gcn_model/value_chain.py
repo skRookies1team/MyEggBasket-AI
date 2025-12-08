@@ -16,7 +16,7 @@ class ValueChainAnalyzer:
     [CSV 기반] 기업 밸류체인 데이터를 활용한 연관 종목 분석기
     """
     def __init__(self):
-        print("🔗 [ValueChain] CSV 밸류체인 데이터 로딩 중...")
+        print(" [ValueChain] CSV 밸류체인 데이터 로딩 중...")
         
         possible_paths = [
             os.path.join(current_dir, "value_chain_result.csv"),
@@ -40,7 +40,7 @@ class ValueChainAnalyzer:
     def _load_data(self):
         """CSV 파일 로드 및 전처리"""
         if not os.path.exists(self.csv_path):
-            print(f"❌ 밸류체인 데이터 파일이 없습니다: {self.csv_path}")
+            print(f" 밸류체인 데이터 파일이 없습니다: {self.csv_path}")
             print("   -> 먼저 map_stock_codes.py를 실행해서 파일을 생성해주세요.")
             return
 
@@ -57,7 +57,7 @@ class ValueChainAnalyzer:
             target_col = '기업_코드포함'
             
             if target_col not in self.df.columns:
-                print(f"❌ '{target_col}' 컬럼이 없습니다.")
+                print(f" '{target_col}' 컬럼이 없습니다.")
                 return
             
             for idx, row in self.df.iterrows():
@@ -77,10 +77,10 @@ class ValueChainAnalyzer:
                     # 이름 매핑 저장
                     self.code_to_name[code] = name
 
-            print(f"✅ 밸류체인 데이터 로드 완료 ({len(self.stock_to_rows)}개 종목)")
+            print(f" 밸류체인 데이터 로드 완료 ({len(self.stock_to_rows)}개 종목)")
 
         except Exception as e:
-            print(f"❌ 데이터 로딩 실패: {e}")
+            print(f" 데이터 로딩 실패: {e}")
 
     def get_stock_name(self, code):
         """  종목 코드를 입력하면 이름을 반환 """
@@ -127,25 +127,7 @@ class ValueChainAnalyzer:
         return recommendations[:top_n]
     
 
-    '''
 
-    def explain_relation(self, stock_code_A, stock_code_B):
-        """두 종목 관계 설명"""
-        if self.df is None: return
-
-        rows_A = set(self.stock_to_rows.get(stock_code_A, []))
-        rows_B = set(self.stock_to_rows.get(stock_code_B, []))
-        common_rows = rows_A.intersection(rows_B)
-        
-        print(f"\n🕵️‍♂️ [관계 분석] {stock_code_A} ↔ {stock_code_B}")
-        if common_rows:
-            print("   👉 같은 밸류체인 그룹에 속해 있습니다:")
-            for idx in common_rows:
-                print(f"      - [{self._get_category_name(self.df.iloc[idx])}]")
-        else:
-            print("   👉 직접적인 밸류체인 공유 관계가 없습니다.")
-
-'''
 
 # 테스트 실행
 if __name__ == "__main__":

@@ -101,7 +101,7 @@ class HyperparameterTuner:
     
     def tune_xgboost(self):
         """XGBoost 튜닝 실행"""
-        print("\n🔧 XGBoost 하이퍼파라미터 튜닝 시작...")
+        print("\n XGBoost 하이퍼파라미터 튜닝 시작...")
         
         study = optuna.create_study(
             direction='maximize',
@@ -117,12 +117,12 @@ class HyperparameterTuner:
         
         self.best_xgb_params = study.best_params
         
-        print(f"\n✅ XGBoost 최적 파라미터 (AUC: {study.best_value:.4f})")
+        print(f"\n XGBoost 최적 파라미터 (AUC: {study.best_value:.4f})")
         return self.best_xgb_params
     
     def tune_lightgbm(self):
         """LightGBM 튜닝 실행"""
-        print("\n🔧 LightGBM 하이퍼파라미터 튜닝 시작...")
+        print("\n LightGBM 하이퍼파라미터 튜닝 시작...")
         
         study = optuna.create_study(
             direction='maximize',
@@ -138,20 +138,20 @@ class HyperparameterTuner:
         
         self.best_lgb_params = study.best_params
         
-        print(f"\n✅ LightGBM 최적 파라미터 (AUC: {study.best_value:.4f})")
+        print(f"\n LightGBM 최적 파라미터 (AUC: {study.best_value:.4f})")
         return self.best_lgb_params
     
     def tune_all(self):
         """XGBoost와 LightGBM 모두 튜닝"""
         print("\n" + "="*60)
-        print("🎯 하이퍼파라미터 최적화 시작")
+        print(" 하이퍼파라미터 최적화 시작")
         print("="*60)
         
         xgb_params = self.tune_xgboost()
         lgb_params = self.tune_lightgbm()
         
         print("\n" + "="*60)
-        print("✅ 하이퍼파라미터 최적화 완료!")
+        print(" 하이퍼파라미터 최적화 완료!")
         print("="*60)
         
         return {
@@ -163,7 +163,7 @@ class HyperparameterTuner:
 def run_tuning(data_path, n_trials=3):
     """실제 데이터로 하이퍼파라미터 튜닝 실행"""
     print("="*60)
-    print("🎯 하이퍼파라미터 튜닝 (실제 데이터)")
+    print(" 하이퍼파라미터 튜닝 (실제 데이터)")
     print("="*60)
     
     # 1. 피처 생성 (data_path는 파일일 수도 있고 폴더일 수도 있음)
@@ -178,11 +178,11 @@ def run_tuning(data_path, n_trials=3):
     elif len(features_ret) == 2:
         X, y = features_ret
     else:
-        print("❌ 피처 생성 반환값 오류")
+        print(" 피처 생성 반환값 오류")
         return None
     
     if X is None:
-        print("❌ 피처 생성 실패")
+        print(" 피처 생성 실패")
         return None
     
     # 2. 튜닝 실행
@@ -193,7 +193,7 @@ def run_tuning(data_path, n_trials=3):
     with open('best_params.json', 'w') as f:
         json.dump(best_params, f, indent=2)
     
-    print("\n💾 최적 파라미터 저장 완료: best_params.json")
+    print("\n 최적 파라미터 저장 완료: best_params.json")
     
     return best_params
 
@@ -211,4 +211,4 @@ if __name__ == "__main__":
     if os.path.exists(data_path):
         run_tuning(data_path, n_trials=3)
     else:
-        print(f"❌ 데이터 경로를 찾을 수 없습니다: {data_path}")
+        print(f" 데이터 경로를 찾을 수 없습니다: {data_path}")
