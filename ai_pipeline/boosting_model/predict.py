@@ -107,13 +107,9 @@ def run_prediction(csv_path=None):
     })
 
     final_df = temp_df.drop_duplicates(subset=['stock_code'], keep='last')
-    
-    print(f"\n 중복 제거 완료: {len(temp_df)}행 -> {len(final_df)}행 (최신 데이터만 유지)")
-
     top_picks = final_df.sort_values(by='ai_score', ascending=False).head(10)
-   
 
-    # 6. 결과 출력
+    # 6. 결과 출력 (한 번만)
     print("\n [AI 강력 추천 종목 TOP 10]")
     print("-" * 50)
     print(f"{'순위':<4} {'종목코드':<10} {'AI점수':<10} {'추천의견':<10}")

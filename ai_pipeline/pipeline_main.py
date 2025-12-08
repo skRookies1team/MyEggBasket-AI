@@ -13,6 +13,7 @@ from ai_pipeline.graph_build.build_gcn_dataset import create_pytorch_dataset
 from ai_pipeline.gcn_model.run_gcn import train_gcn
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 from ai_pipeline.boosting_model.predict import run_prediction
+from ai_pipeline.boosting_model.train_pipeline import run_full_training_pipeline
 
 def show_value_chain_recommendations():
     """
@@ -107,6 +108,23 @@ def run_full_pipeline():
             except SystemExit:
                 # 모듈이 argparse 내부에서 SystemExit를 일으키면 무시
                 pass
+            
+            # 전처리 결과 확인 및 출력
+            try:
+                import pandas as pd
+                csv_path = os.path.join(os.path.dirname(prep_mod.__file__), 'data', 'integrated_financial_data.csv')
+                if os.path.exists(csv_path):
+                    df_disc = pd.read_csv(csv_path, encoding='utf-8-sig')
+                    print(f"    ✓ 통합 공시 CSV 로드 성공: {len(df_disc)}개 종목, {len(df_disc.columns)}개 컬럼")
+                    print(f"    ✓ 공시 컬럼 샘플: {list(df_disc.columns)[:10]}")
+                    if len(df_disc) > 0:
+                        print(f"    ✓ 공시 데이터 샘플 (상위 3개 종목):")
+                        sample_cols = ['stock_code', 'bsns_year', 'fin_revenue', 'fin_net_income', 'emp_total_count']
+                        available_cols = [c for c in sample_cols if c in df_disc.columns]
+                        if available_cols:
+                            print(df_disc[available_cols].head(3).to_string(index=False))
+            except Exception as e:
+                print(f"    공시 데이터 확인 중 오류: {e}")
         except Exception:
             # 실패시 넘어감 (공시가 필수는 아님)
             pass
@@ -122,11 +140,28 @@ def run_full_pipeline():
                 pass
         except Exception as e:
             print(f" [선택] Mongo 업로드 모듈 호출 실패(무시): {e}")
-            
-        # [Step 6] XGBoost/LightGBM 최종 예측
-        print("\n [Step 6/6] Boosting Model 최종 예측")
-        run_prediction()
 
+        # [Step 6] 모델 학습 (공시 데이터 포함)
+        print("\n [Step 6/7] Boosting Model 학습 (공시 피처 포함)")
+        try:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+            data_dir = os.path.join(project_root, "data")
+            
+            if os.path.exists(data_dir):
+                # 학습 실행 (튜닝 없이 빠른 학습)
+                model, results = run_full_training_pipeline(data_dir, do_tuning=False)
+                print(" 모델 학습 완료 (공시 피처가 포함된 상태로 학습됨)")
+            else:
+                print(f" 학습 데이터 폴더를 찾을 수 없음: {data_dir}")
+        except Exception as e:
+            print(f" 모델 학습 중 오류 발생: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # [Step 7] XGBoost/LightGBM 최종 예측
+        print("\n [Step 7/7] Boosting Model 최종 예측")
+        run_prediction()
+        
         elapsed = time.time() - start_time
         print("\n" + "="*60)
         print(f" [전체 파이프라인] 완료! (소요시간: {elapsed:.2f}초)")

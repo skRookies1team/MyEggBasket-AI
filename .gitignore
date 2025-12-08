@@ -13,3 +13,4 @@ __pycache__/
 /ai_pipeline/mapping/__pycache__
 /ai_pipeline/nlp/__pycache__
 /ai_pipeline/graph_build/__pycache__
+/ai_pipeline/boosting_model/__pycache__
