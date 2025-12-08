@@ -9,6 +9,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 from ai_pipeline.boosting_model.train import StackingEnsemble
 
+# ==================================================
+# 예측 스크립트 (한글 주석)
+# - 저장된 스태킹 모델을 불러와서 새로운 체결 데이터에 대해
+#   XGBoost / LightGBM 기반의 예측을 수행하고, 종목별 상승 확률을 산출합니다.
+# - 주요 단계: 모델 로드 -> 피처 생성(FeatureEngineer) -> predict_proba 호출 -> 결과 정리 및 저장
+# ==================================================
+
 def run_prediction(csv_path=None):
     print("\n" + "="*60)
     print(" [Step 6] XGBoost/LightGBM 최종 예측 및 추천")
@@ -27,6 +34,8 @@ def run_prediction(csv_path=None):
 
     model = StackingEnsemble()
     try:
+        # 저장된 모델(피클)을 로드합니다. 로드 과정에서 feature_names.json도 읽어
+        # 예측시 칼럼 정렬에 사용합니다.
         model.load_model(model_dir)
         print(" 학습된 Stacking 모델 로드 완료")
     except Exception as e:
@@ -55,6 +64,8 @@ def run_prediction(csv_path=None):
     # 3. 피처 엔지니어링
     try:
         # [수정] FeatureEngineer가 이제 data_dir 인자를 받으므로 매개변수명 맞춤
+        # FeatureEngineer를 사용해 모델 입력용 X를 생성합니다.
+        # FeatureEngineer는 GCN 임베딩, 기술적 지표, 공시 병합 등을 수행합니다.
         engineer = FeatureEngineer(data_dir=csv_path)
         features_ret = engineer.create_final_features()
 

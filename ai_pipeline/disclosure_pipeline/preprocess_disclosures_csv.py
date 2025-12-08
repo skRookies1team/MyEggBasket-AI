@@ -23,6 +23,8 @@ DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "data", "integrated_fin
 
 def normalize_stock_code(df):
     # 명시적인 종목코드 컬럼을 우선 사용합니다
+    # 설명: 공시 원본은 종종 'stock_code_x', 'stock_code_y' 등 다양한 컬럼명을 가짐.
+    #       모델 병합을 위해 최종적으로 `stock_code` 칼럼으로 통일하고 6자리 포맷으로 정규화합니다.
     for cand in ("stock_code", "stock_code_x", "stock_code_y", "stck_shrn_iscd"):
         if cand in df.columns:
             df['stock_code'] = df[cand].astype(str).str.strip().str.zfill(6)
@@ -34,7 +36,8 @@ def normalize_stock_code(df):
 
 
 def ensure_bsns_year(df):
-    # bsns_year 컬럼이 없으면 report_nm 또는 rcept_dt에서 추출합니다
+    # bsns_year 컬럼이 없으면 report_nm 또는 rcept_dt에서 연도를 추출합니다
+    # 설명: 결산연도(bsns_year)가 ML 피처로 중요할 수 있으므로 없으면 가능한 한 추출하여 채웁니다.
     if 'bsns_year' in df.columns:
         return df
 
@@ -61,6 +64,8 @@ def ensure_bsns_year(df):
 
 def rename_financial_columns(df):
     # 노트북/CSV에서 자주 보이는 컬럼명 매핑
+    # 설명: 다양한 소스에서 온 CSV의 재무 컬럼명이 일관되지 않으므로
+    #       통일된 내부 칼럼명으로 변환합니다. 변환 후 숫자형으로 안전하게 캐스팅합니다.
     mapping = {
         'fin_매출액': 'fin_revenue',
         'fin_영업이익': 'fin_op_income',
@@ -88,7 +93,8 @@ def rename_financial_columns(df):
 
 
 def derive_reprt_code(df):
-    # small helper to set reprt_code based on report name
+    # 보고서명(report_nm)으로부터 reprt_code를 유추하는 보조 함수
+    # 예: 사업보고서, 분기보고서(1Q/2Q/3Q) 등을 간단 규칙으로 매핑합니다.
     def code_from_name(nm):
         s = str(nm)
         if '.12)' in s or '사업보고서' in s:
