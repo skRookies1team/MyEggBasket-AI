@@ -19,10 +19,12 @@ try:
 except ImportError:
     pass
 
-# GAE 모델 로드는 지연(lazy) 임포트로 처리합니다.
-# 모듈 임포트 시점에 heavy dependency(torch_geometric, transformers 등)가 로드되는 것을
-# 방지하기 위해 기본값을 None으로 설정하고, 실제 GCN 사용 시점에 필요하면 내부에서 시도합니다.
-get_gae_model = None
+# GAE 모델 로드
+try:
+    from ai_pipeline.gcn_model.model import get_gae_model
+except ImportError:
+    print(" GCN 모델 파일을 찾을 수 없습니다. (ai_pipeline/gcn_model/model.py 확인 필요)")
+    get_gae_model = None
 
 # =========================================================
 # ✅ GCN 로더 클래스
@@ -164,12 +166,7 @@ class FeatureEngineer:
     def __init__(self, data_dir=None, csv_path=None):
         self.data_dir = data_dir
         self.csv_path = csv_path 
-        try:
-            self.expander = FeatureExpander()
-        except Exception:
-            # ta 라이브러리 등 의존성 문제로 FeatureExpander가 로드되지 않을 수 있음
-            # 이 경우 확장 기능 없이 기본 피처만 사용하도록 None으로 설정
-            self.expander = None
+        self.expander = FeatureExpander()
         try:
             self.gcn_loader = GCNFeatureExtractor()
         except Exception as e:
@@ -200,21 +197,8 @@ class FeatureEngineer:
                     num_cols = ddf.select_dtypes(include=[np.number]).columns.tolist()
                     keep_cols = ['stock_code'] + [c for c in num_cols if c != 'stock_code']
                     if len(keep_cols) > 1:
-                        # 접두사로 공시 컬럼을 구분합니다 (충돌 방지)
-                        disc_df = ddf[keep_cols].set_index('stock_code')
-                        # 숫자형 컬럼 이름에 접두사 추가 (stock_code 제외)
-                        new_cols = {}
-                        for c in disc_df.columns:
-                            if c == 'stock_code':
-                                new_cols[c] = c
-                            else:
-                                new_cols[c] = f"disc_{c}"
-                        disc_df = disc_df.rename(columns=new_cols)
-                        self.disclosure_df = disc_df
-                        try:
-                            print(f" 공시 데이터 로드됨: 종목 {self.disclosure_df.shape[0]}개, 컬럼 {self.disclosure_df.shape[1]}개 (경로: {disc_path})")
-                        except Exception:
-                            pass
+                        ddf = ddf[keep_cols].set_index('stock_code')
+                        self.disclosure_df = ddf
         except Exception:
             self.disclosure_df = None
     
@@ -276,9 +260,8 @@ class FeatureEngineer:
         temp_code_col = 'stck_shrn_iscd'
         X[temp_code_col] = stock_codes
         
-        # 기술적 지표 추가 (FeatureExpander가 없으면 건너뜀)
-        if self.expander:
-            X = self.expander.add_technical_indicators(X)
+        # 기술적 지표 추가
+        X = self.expander.add_technical_indicators(X)
         
         # GCN 피처 추가
         if self.gcn_loader:
@@ -295,15 +278,15 @@ class FeatureEngineer:
                 # 대용량 병합 성능을 위해 컬럼별 매핑(map) 방식으로 병합
                 # disclosure_df는 index가 stock_code이며 숫자형 컬럼만 포함
                 # 인덱스와 값을 numpy로 미리 준비 (벡터화된 인덱싱)
-                # 키 형식을 통일해서 포맷 불일치로 인한 매칭 실패를 방지합니다
-                disc_index = self.disclosure_df.index.astype(str).str.strip().str.zfill(6)
+                disc_index = self.disclosure_df.index.astype(str)
                 for c in self.disclosure_df.columns:
-                    # 접두사된 공시 칼럼은 기존 컬럼과 충돌하지 않으므로 바로 추가
+                    if c in X.columns:
+                        continue
                     try:
                         arr = self.disclosure_df[c].to_numpy()
                         keys = disc_index
-                        # X의 코드 배열 (정규화: strip + zfill)
-                        codes = X[temp_code_col].astype(str).str.strip().str.zfill(6).to_numpy()
+                        # X의 코드 배열
+                        codes = X[temp_code_col].astype(str).to_numpy()
                         # get_indexer를 사용하면 벡터화된 인덱싱이 가능
                         idx = keys.get_indexer(codes)
                         # idx == -1 은 없는 값 -> 0 채움

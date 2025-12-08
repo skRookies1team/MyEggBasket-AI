@@ -68,8 +68,6 @@ def main():
                 bgn = end = yesterday.strftime("%Y%m%d")
 
             print(f"공시 수집 시작: {bgn} ~ {end} ...")
-            # 실제 수집 호출: OpenDART API 등 외부 서비스에서 공시 데이터를 받아옵니다.
-            # collector는 pandas DataFrame을 반환해야 합니다.
             df = collector.collect_disclosures(bgn, end)
             if df is None or df.empty:
                 print("데이터를 수집하지 못했거나 수집기가 사용 불가합니다. 로컬 CSV로 대체 시도합니다.")
@@ -86,7 +84,6 @@ def main():
             load_error = e
 
     # If we reach here, collector is not usable — fallback to copying existing local CSV
-    # 수집기 사용 불가시 로컬 파일을 복사하는 안전장치
     print(f"수집기 사용 불가 또는 실패: {load_error}")
     fallback = os.path.join(os.path.dirname(__file__), "data", "financial_disclosure_data.csv")
     if os.path.exists(fallback):

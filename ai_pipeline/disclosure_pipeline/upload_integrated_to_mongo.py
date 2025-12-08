@@ -21,9 +21,6 @@ except Exception:
 
 
 def get_mongo_uri():
-    # 환경변수에서 MongoDB 접속 URI를 가져옵니다.
-    # 우선순위: MONGO_URI, 그 다음 MONGODB_URI
-    # 주의: 로컬 개발환경의 경우 .env 파일에 MONGO_URI를 넣어두면 편리합니다.
     return os.getenv('MONGO_URI') or os.getenv('MONGODB_URI')
 
 
@@ -82,7 +79,6 @@ def main():
 
         filt = {'stock_code': doc['stock_code'], 'bsns_year': doc.get('bsns_year', 0)}
         try:
-            # upsert: 동일 (stock_code, bsns_year) 키가 있으면 업데이트, 없으면 삽입
             res = coll.update_one(filt, {'$set': doc}, upsert=True)
             if res.upserted_id:
                 inserted += 1

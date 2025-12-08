@@ -17,16 +17,6 @@ import joblib
 import json
 warnings.filterwarnings('ignore')
 
-# ==================================================
-# 이 파일은 XGBoost, LightGBM 기반 스태킹 앙상블을
-# 학습/평가/저장하는 유틸리티입니다.
-# 주요 기능:
-# - XGBoost, LightGBM을 각각 학습시켜 예측 확률을 만듭니다.
-# - 두 모델의 예측 확률을 메타 모델(LogisticRegression)에 입력하여
-#   최종 예측을 수행하는 스태킹 구조를 구현합니다.
-# - 학습 시 사용된 피처명을 저장하여, 예측 시 동일한 피처 순서로 정렬합니다.
-# ==================================================
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
@@ -40,15 +30,6 @@ class StackingEnsemble:
     """
     
     def __init__(self, xgb_params=None, lgb_params=None):
-        # 기본 파라미터 로드 및 모델 초기화
-        # 설명:
-        # - 프로젝트 루트에 `best_params.json` 파일이 있으면 해당 파일에서
-        #   xgboost/lightgbm 파라미터를 읽어 사용합니다.
-        # - 없으면 코드 내의 기본 파라미터를 사용합니다.
-        # - 이후 XGB/LGB 모델 객체와 메타 모델(LogisticRegression)을 초기화합니다.
-        # 주의: 하이퍼파라미터 튜닝을 통해 best_params.json을 생성하면
-        #       같은 설정으로 재현 가능한 학습이 가능합니다.
-        
         # 기본 파라미터 (best_params.json이 있으면 사용)
         if os.path.exists('best_params.json'):
             with open('best_params.json', 'r') as f:
@@ -84,18 +65,7 @@ class StackingEnsemble:
         self.is_trained = False
     
     def train(self, X_train, y_train, X_val=None, y_val=None):
-        """스태킹 모델 학습
-
-        설명:
-        1) XGBoost와 LightGBM을 각각 학습하여 학습셋에 대한 예측 확률을 얻습니다.
-        2) 두 모델의 학습 예측 결과를 합쳐서 메타 모델(LogisticRegression)에 입력하여
-           메타 모델을 학습합니다.
-        3) 검증셋이 주어진 경우 각 단계에서 ROC-AUC를 출력합니다.
-
-        주의사항:
-        - 입력 `X_train`, `X_val`는 pandas DataFrame을 권장합니다(피처명 저장을 위해).
-        - 학습 후 `self.feature_names`에 사용된 피처명을 기록합니다.
-        """
+        """스태킹 모델 학습"""
         print("\n" + "="*60)
         print(" 스태킹 앙상블 학습 시작")
         print("="*60)
@@ -162,11 +132,6 @@ class StackingEnsemble:
         [표준] 확률 반환 (N행 2열: [하락확률, 상승확률])
         이 함수가 있어야 analyzer.py나 predict.py에서 에러가 안 남!
         """
-        # 설명:
-        # - predict_proba는 학습된 모델을 사용하여 입력 X에 대한 상승확률/하락확률을 반환합니다.
-        # - 입력이 pandas DataFrame일 경우, 학습 시 저장된 feature 순서(`self.feature_names`)에
-        #   맞춰 칼럼을 정렬하고 누락된 칼럼은 0으로 채워 예측 시 칼럼 불일치로 인한 오류를 방지합니다.
-        # - 반환 포맷은 (N,2)로, [하락확률, 상승확률]을 순서대로 반환합니다.
         if not self.is_trained:
             raise ValueError("모델이 학습되지 않았습니다.")
 
@@ -236,8 +201,6 @@ class StackingEnsemble:
         }
     
     def save_model(self, save_dir='models'):
-        # 모델 객체와 학습에 사용된 피처명을 디스크에 저장합니다.
-        # 디스크에 저장된 `feature_names.json`은 추후 예측시 사용됩니다.
         os.makedirs(save_dir, exist_ok=True)
         with open(os.path.join(save_dir, 'xgb_model.pkl'), 'wb') as f: pickle.dump(self.xgb_model, f)
         with open(os.path.join(save_dir, 'lgb_model.pkl'), 'wb') as f: pickle.dump(self.lgb_model, f)
@@ -264,27 +227,6 @@ class StackingEnsemble:
                     self.feature_names = json.load(fh)
         except Exception:
             self.feature_names = None
-        # 만약 feature_names가 없으면, 모델 오브젝트에서 유추 시도 (XGBoost / LightGBM)
-        try:
-            if not hasattr(self, 'feature_names') or self.feature_names is None:
-                # XGBoost booster에서 피처명 가져오기
-                try:
-                    booster = getattr(self.xgb_model, 'get_booster', lambda: None)()
-                    if booster is not None and hasattr(booster, 'feature_names'):
-                        self.feature_names = list(booster.feature_names)
-                except Exception:
-                    pass
-
-                # LightGBM의 경우 내부 booster에서 가져오기
-                if (not hasattr(self, 'feature_names') or self.feature_names is None) and hasattr(self.lgb_model, 'booster_'):
-                    try:
-                        lgb_names = getattr(self.lgb_model.booster_, 'feature_name', lambda : None)()
-                        if lgb_names:
-                            self.feature_names = list(lgb_names)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
 
         self.is_trained = True
         print(f" 모델 로드 완료: {save_dir}/")
