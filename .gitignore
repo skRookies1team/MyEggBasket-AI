@@ -3,7 +3,7 @@
 .env
 
 best_params.json
-models/
+ai_pipeline/boosting_model/models/
 __pycache__/
 *.pyc
 *.pdf
