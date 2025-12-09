@@ -5,27 +5,26 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/train_from_csv.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/gcn_model/inference_gcn.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/make_training_data.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/predict_main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/20251204.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/20251205.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/final_dataset_with_gcn.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/MyEggBasket-AI.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/MyEggBasket-AI.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251120.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251121.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251124.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251125.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251126.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251127.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251202.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251203.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251204.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251205.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/data_2218_20251128.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/final_dataset_with_gcn.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/graph_edges.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/report_analysis_results.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/value_chain_data.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/value_chain_result.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/end_to_end_trade.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/predict.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/realtime_feature_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/realtime_feature_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/config/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/portfolio/rebalancer.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/portfolio/rebalancer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/graph_edges.csv" beforeDir="false" afterPath="$PROJECT_DIR$/data/graph_edges.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/lgb_model.pkl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/meta_model.pkl" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/xgb_model.pkl" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_dataset.csv" beforeDir="false" afterPath="$PROJECT_DIR$/train_dataset.csv" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +35,7 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Python Script" />
+        <option value="Jupyter Notebook" />
       </list>
     </option>
   </component>
@@ -55,11 +55,12 @@
   "keyToString": {
     "Python.train_from_csv.executor": "Run",
     "git-widget-placeholder": "task/80__predicting__model__feature__integration",
-    "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/data"
+    "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/ai_pipeline/boosting_model"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/ai_pipeline/boosting_model" />
       <recent name="$PROJECT_DIR$/data" />
       <recent name="$PROJECT_DIR$" />
     </key>
