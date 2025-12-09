@@ -7,7 +7,6 @@ sys.path.append(ROOT_DIR)
 from ai_pipeline.news_source.finance_news_list import fetch_finance_news_list
 from ai_pipeline.news_source.news_article_crawler import extract_real_article_url, fetch_article_text
 from ai_pipeline.news_etl.es_uploader import save_news_to_es, exists_in_es
-# [NEW] 문장 정밀 분석기 & 밸류체인 분석기
 from ai_pipeline.nlp.news_analyzer import NewsAnalyzer
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 
@@ -35,14 +34,21 @@ def run_finance_news_etl():
             skipped_dup += 1
             continue
 
-        print(f"[{idx+1}]  분석 중: {real_url}")
+        print(f"[{idx+1}]   분석 중: {real_url}")
         
-        # 2. 제목과 본문 수집 (수정된 크롤러 사용)
-        title, article_text = fetch_article_text(real_url)
+        # 2. 제목, 본문, 날짜 수집 (수정된 크롤러는 3개를 반환함)
+        crawled_data = fetch_article_text(real_url)
         
-        if not article_text or len(article_text) < 50:
-            print("    본문 없음/짧음 -> Pass")
+        if not crawled_data:
+            print("     본문 없음/짧음 -> Pass")
             continue
+
+        # [수정] 반환값 3개 언패킹
+        title, article_text, p_date = crawled_data
+        
+        if len(article_text) < 50:
+             print("     본문 너무 짧음 -> Pass")
+             continue
 
         # ---------------------------------------------------------
         #  [Core 1] 문장 단위 정밀 감성 분석
@@ -78,14 +84,16 @@ def run_finance_news_etl():
         # ---------------------------------------------------------
         print(f"    발견: {related_stocks} | 문장수: {len(sentence_details)} | VC연관: {len(value_chain_info)}개")
         
+        # 변수명 매칭 (url -> real_url, text -> article_text, published_date 추가)
         save_news_to_es(
             url=real_url,
             title=title,
             text=article_text,
+            published_date=p_date,
             related_stocks=related_stocks,
-            analysis_results=analysis_results, # 1h, trend, volatility 포함됨
-            sentence_details=sentence_details, # 문장별 점수 포함됨
-            value_chain_info=value_chain_info  # 밸류체인 정보 포함됨
+            analysis_results=analysis_results,
+            sentence_details=sentence_details,
+            value_chain_info=value_chain_info
         )
         saved_count += 1
 
