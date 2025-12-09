@@ -1,67 +1,105 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="11e919b1-9a0e-4b25-a102-3db51a576170" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/dart_collector.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/dart_preprocessor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/mongo_uploader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/mongo_uploader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/collectingDisclosure.ipynb" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/disclosure_features.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/financial_disclosure_data.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/integrated_financial_data.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/recent_disclosures.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/scheduler.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+    <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251120.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251121.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251124.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251125.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251126.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251127.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251202.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251203.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251204.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/20251205.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/data_2218_20251128.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/final_dataset_with_gcn.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/graph_edges.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/report_analysis_results.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/value_chain_data.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/data/value_chain_result.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/end_to_end_trade.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/realtime_feature_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/realtime_feature_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_dataset.csv" beforeDir="false" afterPath="$PROJECT_DIR$/train_dataset.csv" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+        <option value="Jupyter Notebook" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 0
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/skRookies1team/MyEggBasket-AI.git",
+    "accountId": "477dfe33-61ad-43e9-ad6e-29b6fb32300c"
+  }
 }]]></component>
-  <component name="ProjectId" id="36XXAKQgxz3ZiV9xZcUb3SEialF" />
-  <component name="ProjectViewState">
-    <option name="hideEmptyMiddlePackages" value="true" />
-    <option name="showLibraryContents" value="true" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "task/74__disclosure-data-pipeline",
-    "kotlin-language-version-configured": "true",
-    "vue.rearranger.settings.migration": "true"
+    "Python.train_from_csv.executor": "Run",
+    "git-widget-placeholder": "task/80__predicting__model__feature__integration",
+    "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/ai_pipeline/boosting_model"
   }
 }]]></component>
-  <component name="SharedIndexes">
-    <attachedChunks>
-      <set>
-        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.28238.7" />
-        <option value="bundled-js-predefined-d6986cc7102b-a71380e98a7c-JavaScript-IU-252.28238.7" />
-      </set>
-    </attachedChunks>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/ai_pipeline/boosting_model" />
+      <recent name="$PROJECT_DIR$/data" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/data" />
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/ai_pipeline/boosting_model" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="train_from_csv" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="MyEggBasket-AI" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/ai_pipeline/boosting_model" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/ai_pipeline/boosting_model/train_from_csv.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.train_from_csv" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="TaskManager">
-    <task active="true" id="Default" summary="Default task">
-      <changelist id="11e919b1-9a0e-4b25-a102-3db51a576170" name="Changes" comment="" />
-      <created>1765153749433</created>
-      <option name="number" value="Default" />
-      <option name="presentableId" value="Default" />
-      <updated>1765153749433</updated>
-      <workItem from="1765153752747" duration="59000" />
-    </task>
     <servers />
-  </component>
-  <component name="TypeScriptGeneratedFilesManager">
-    <option name="version" value="3" />
   </component>
 </project>

@@ -1,8 +1,3 @@
-"""
-ai_pipeline.config.settings
-프로젝트 전체에서 사용하는 공통 환경 설정
-"""
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -22,7 +17,7 @@ ENV_PATH = PROJECT_ROOT / ".env"
 # ============================================================
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH, verbose=True)
-  
+
 # ============================================================
 # 3. Elasticsearch 설정
 # ============================================================
@@ -57,7 +52,7 @@ if KIS_IS_MOCK:
     KIS_APP_SECRET = os.getenv("KIS_MOCK_APP_SECRET")
     KIS_ACCOUNT_NO = os.getenv("KIS_MOCK_ACCOUNT_NO")
     KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443"
-  
+
 else:
     KIS_APP_KEY = os.getenv("KIS_APP_KEY")
     KIS_APP_SECRET = os.getenv("KIS_APP_SECRET")
