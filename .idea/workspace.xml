@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="11e919b1-9a0e-4b25-a102-3db51a576170" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/dart_collector.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/dart_preprocessor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/mongo_uploader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/disclosure_pipeline/mongo_uploader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/collectingDisclosure.ipynb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/disclosure_features.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/financial_disclosure_data.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/integrated_financial_data.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/disclosure_pipline/disclosure_data/recent_disclosures.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/scheduler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="36XXAKQgxz3ZiV9xZcUb3SEialF" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "task/74__disclosure-data-pipeline",
+    "kotlin-language-version-configured": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.28238.7" />
+        <option value="bundled-js-predefined-d6986cc7102b-a71380e98a7c-JavaScript-IU-252.28238.7" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="11e919b1-9a0e-4b25-a102-3db51a576170" name="Changes" comment="" />
+      <created>1765153749433</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1765153749433</updated>
+      <workItem from="1765153752747" duration="59000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

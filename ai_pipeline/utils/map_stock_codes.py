@@ -3,7 +3,7 @@ import os
 import re
 
 def map_value_chain_codes():
-    print("🔄 밸류체인 종목코드 매핑 시작...")
+    print(" 밸류체인 종목코드 매핑 시작...")
 
     # 1. 파일 경로 설정 (스마트 탐색)
     current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ def map_value_chain_codes():
     
     found_dir = None
     
-    print(f"🔍 파일 탐색 중...")
+    print(f" 파일 탐색 중...")
     for directory in search_dirs:
         if os.path.exists(directory):
             s_path = os.path.join(directory, stock_file_name)
@@ -28,11 +28,11 @@ def map_value_chain_codes():
             
             if os.path.exists(s_path) and os.path.exists(v_path):
                 found_dir = directory
-                print(f"✅ 파일을 찾았습니다: {found_dir}")
+                print(f" 파일을 찾았습니다: {found_dir}")
                 break
     
     if found_dir is None:
-        print("\n❌ 오류: 파일을 찾을 수 없습니다.")
+        print("\n 오류: 파일을 찾을 수 없습니다.")
         return
 
     stock_list_path = os.path.join(found_dir, stock_file_name)
@@ -57,12 +57,12 @@ def map_value_chain_codes():
         df_stock = read_csv_safe(stock_list_path)
         df_vc = read_csv_safe(value_chain_path)
         
-        print(f"📊 데이터 로드 성공")
+        print(f" 데이터 로드 성공")
         print(f"   - 종목 데이터: {len(df_stock)}개")
         print(f"   - 밸류체인 데이터: {len(df_vc)}행")
 
     except Exception as e:
-        print(f"❌ 파일 읽기 중 에러 발생: {e}")
+        print(f" 파일 읽기 중 에러 발생: {e}")
         return
 
     # 3. 매핑 사전(Dictionary) 만들기
@@ -126,8 +126,8 @@ def map_value_chain_codes():
         
         # 저장할 때는 utf-8-sig (엑셀에서 한글 안 깨지게)
         df_vc.to_csv(output_path, index=False, encoding='utf-8-sig')
-        print(f"\n✅ 변환 완료! 파일이 저장되었습니다.")
-        print(f"📂 저장 경로: {output_path}")
+        print(f"\n 변환 완료! 파일이 저장되었습니다.")
+        print(f" 저장 경로: {output_path}")
         
         print("\n[결과 미리보기]")
         # 출력용 컬럼 선택
@@ -136,7 +136,7 @@ def map_value_chain_codes():
         print(df_vc[target_cols].head(3))
         
     else:
-        print(f"❌ 밸류체인 파일에 '기업' 컬럼이 없습니다. 현재 컬럼: {df_vc.columns.tolist()}")
+        print(f" 밸류체인 파일에 '기업' 컬럼이 없습니다. 현재 컬럼: {df_vc.columns.tolist()}")
 
 if __name__ == "__main__":
     map_value_chain_codes()

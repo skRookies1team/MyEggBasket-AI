@@ -4,68 +4,95 @@ import os
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.append(ROOT_DIR)
 
-
 from ai_pipeline.news_source.finance_news_list import fetch_finance_news_list
 from ai_pipeline.news_source.news_article_crawler import extract_real_article_url, fetch_article_text
-from ai_pipeline.nlp.text_splitter import split_text
-from ai_pipeline.nlp.sentiment import analyze_sentiment
 from ai_pipeline.news_etl.es_uploader import save_news_to_es, exists_in_es
-from ai_pipeline.mapping.stock_mapping import get_stock_mentions
+# [NEW] 문장 정밀 분석기 & 밸류체인 분석기
+from ai_pipeline.nlp.news_analyzer import NewsAnalyzer
+from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 
 def run_finance_news_etl():
-    print("🔥 ETL 시작됨")
+    print(" ETL 시작됨 (문장단위 정밀분석 + 밸류체인)")
 
-    news_urls = fetch_finance_news_list()
-    print("📌 수집된 URL 개수:", len(news_urls))
-
-    if len(news_urls) == 0:
-        print("❌ 뉴스 URL이 0개입니다. selector나 User-Agent 문제입니다.")
+    news_urls = fetch_finance_news_list(max_pages=3)
+    
+    if not news_urls:
+        print(" 수집된 뉴스가 없습니다.")
         return
+    
+    # 분석기들 초기화
+    news_analyzer = NewsAnalyzer()
+    vc_analyzer = ValueChainAnalyzer()
     
     saved_count = 0
     skipped_dup = 0
-    skipped_irrelevant = 0
 
     for idx, finance_url in enumerate(news_urls):
         real_url = extract_real_article_url(finance_url)
-        print(f"➡ 실제 기사 URL: {real_url}")
-
+        
+        # 1. 중복 체크
         if exists_in_es(real_url):
-            # print(f"   ⏭️ [Skip] 이미 수집된 뉴스") # 로그 너무 많으면 주석
             skipped_dup += 1
             continue
 
-        print(f"[{idx+1}/{len(news_urls)}] 🆕 신규 뉴스 분석 중: {real_url}")
-       
-
-        article_text = fetch_article_text(real_url)
-        if not article_text:
-            print("❌ 본문 없음 → 스킵")
-            continue
-
-        if len(article_text) < 100:
-             print("⚠️ 본문이 너무 짧음(단신) → 스킵")
-             continue
+        print(f"[{idx+1}]  분석 중: {real_url}")
         
-        related_stocks = get_stock_mentions(article_text)
-
-        if not related_stocks:
-            print("   🗑️ [Pass] 주식 종목 언급 없음 (일반 경제 뉴스)")
-            skipped_irrelevant += 1
+        # 2. 제목과 본문 수집 (수정된 크롤러 사용)
+        title, article_text = fetch_article_text(real_url)
+        
+        if not article_text or len(article_text) < 50:
+            print("    본문 없음/짧음 -> Pass")
             continue
 
-        chunks = split_text(article_text)
-        sentiments = analyze_sentiment(chunks)
+        # ---------------------------------------------------------
+        #  [Core 1] 문장 단위 정밀 감성 분석
+        # ---------------------------------------------------------
+        # results: { '005930': {'sentiment_score': 0.9, ...} }
+        # details: [ {'sentence': '...', 'ticker': '...', 'sentiment': 0.9}, ... ]
+        analysis_results, sentence_details = news_analyzer.analyze_article(article_text)
 
-        print(f"   ✅ 관련 종목 발견: {related_stocks}")
-        save_news_to_es(real_url, article_text, chunks, sentiments, related_stocks)
+        if not analysis_results:
+            print("    [Pass] 종목 언급 없음 (일반 뉴스)")
+            continue
+
+        related_stocks = list(analysis_results.keys())
+
+        # ---------------------------------------------------------
+        #  [Core 2] 밸류체인 연관 종목 추출
+        # ---------------------------------------------------------
+        value_chain_info = []
+        for stock_code in related_stocks:
+            # 각 종목별로 연관된 친구들을 찾음 (CSV 기반)
+            recs = vc_analyzer.find_similar_stocks(stock_code, top_n=3)
+            if recs:
+                for r in recs:
+                    value_chain_info.append({
+                        "source_code": stock_code,
+                        "related_code": r['code'],
+                        "related_name": r['name'],
+                        "reason": r['reason']
+                    })
+
+        # ---------------------------------------------------------
+        #  [Core 3] 최종 저장
+        # ---------------------------------------------------------
+        print(f"    발견: {related_stocks} | 문장수: {len(sentence_details)} | VC연관: {len(value_chain_info)}개")
+        
+        save_news_to_es(
+            url=real_url,
+            title=title,
+            text=article_text,
+            related_stocks=related_stocks,
+            analysis_results=analysis_results, # 1h, trend, volatility 포함됨
+            sentence_details=sentence_details, # 문장별 점수 포함됨
+            value_chain_info=value_chain_info  # 밸류체인 정보 포함됨
+        )
         saved_count += 1
 
     print("\n" + "="*40)
-    print(f"✅ ETL 완료 요약")
-    print(f"   - 총 저장됨: {saved_count}건")
-    print(f"   - 중복 스킵: {skipped_dup}건")
-    print(f"   - 관련없음(종목X) 스킵: {skipped_irrelevant}건")
+    print(f" ETL 완료")
+    print(f"   - 새로 저장됨: {saved_count}건")
+    print(f"   - 중복 건너뜀: {skipped_dup}건")
     print("="*40)
 
 if __name__ == "__main__":

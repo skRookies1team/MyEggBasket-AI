@@ -6,3 +6,5 @@ best_params.json
 models/
 __pycache__/
 *.pyc
+*.pdf
+/data/reports/

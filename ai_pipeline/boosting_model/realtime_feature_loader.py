@@ -16,22 +16,23 @@ class RealtimeFeatureLoader:
         'total_askp_rsqn', 'total_bidp_rsqn'
     ]
     
-    def __init__(self, csv_path):
-        self.csv_path = csv_path
+    def __init__(self, csv_file_path):
+        self.csv_path = csv_file_path
         
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"❌ CSV 파일을 찾을 수 없습니다: {csv_path}")
+        if not os.path.exists(csv_file_path):
+            raise FileNotFoundError(f" CSV 파일을 찾을 수 없습니다: {csv_file_path}")
         
-        print(f"✅ CSV 파일 경로 확인 완료: {csv_path}")
+        print(f" CSV 파일 경로 확인 완료: {csv_file_path}")
     
     def load_and_preprocess(self):
         """CSV 파일 로드 및 전처리"""
-        print("\n📊 체결 정보 CSV 로딩 중...")
+        print("\n 체결 정보 CSV 로딩 중...")
         
         # CSV 로드
-        df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
-        
-        print(f"   원본 데이터: {len(df):,}개 행, {len(df.columns)}개 컬럼")
+        try:
+            df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
+        except UnicodeDecodeError:
+            df = pd.read_csv(self.csv_path, sep=',', encoding='cp949')
         
         # 컬럼명 정리 (공백/특수문자 제거, 소문자 변환)
         df.columns = df.columns.str.strip().str.lower()
@@ -39,6 +40,8 @@ class RealtimeFeatureLoader:
         # 컬럼명 표준화 매핑
         column_mapping = {
             'stck_shrn_iscd': 'stock_code',
+            'code': 'stock_code',
+            '종목코드': 'stock_code'
             # 실제 CSV의 컬럼명을 그대로 사용 (이미 표준)
         }
         
@@ -62,7 +65,7 @@ class RealtimeFeatureLoader:
                 missing_cols.append(col)
         
         if missing_cols:
-            print(f"❌ 필수 컬럼 누락: {missing_cols}")
+            print(f" 필수 컬럼 누락: {missing_cols}")
             print(f"   실제 컬럼: {df.columns.tolist()}")
             raise KeyError(f"필수 컬럼이 없습니다: {missing_cols}")
         
@@ -70,12 +73,12 @@ class RealtimeFeatureLoader:
         try:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
         except:
-            print("⚠️ timestamp 변환 실패. 기본 형식으로 진행합니다.")
+            print(" timestamp 변환 실패. 기본 형식으로 진행합니다.")
         
         # 정렬 (종목코드, 시간순)
         df = df.sort_values(['stock_code', 'timestamp']).reset_index(drop=True)
         
-        print(f"✅ 전처리 완료")
+        print(f" 전처리 완료")
         print(f"   종목 수: {df['stock_code'].nunique()}개")
         print(f"   데이터 기간: {df['timestamp'].min()} ~ {df['timestamp'].max()}")
         
@@ -83,7 +86,7 @@ class RealtimeFeatureLoader:
     
     def create_technical_features(self, df):
         """기술적 지표 생성"""
-        print("\n📈 기술적 지표 계산 중...")
+        print("\n 기술적 지표 계산 중...")
         
         result_dfs = []
         
@@ -135,7 +138,7 @@ class RealtimeFeatureLoader:
             result_dfs.append(group)
         
         final_df = pd.concat(result_dfs, ignore_index=True)
-        print(f"✅ 기술적 지표 추가 완료")
+        print(f" 기술적 지표 추가 완료")
         
         return final_df
     
@@ -152,10 +155,10 @@ class RealtimeFeatureLoader:
         df = df.dropna()
         
         if len(df) == 0:
-            print("❌ 유효한 데이터가 없습니다.")
+            print(" 유효한 데이터가 없습니다.")
             return None, None, None
         
-        print(f"\n🧹 NaN 제거: {original_len:,} → {len(df):,} ({len(df)/original_len*100:.1f}%)")
+        print(f"\n NaN 제거: {original_len:,} → {len(df):,} ({len(df)/original_len*100:.1f}%)")
         
         # 4. 피쳐 선택 (GCN 임베딩은 나중에 merge)
         feature_cols = [
@@ -174,7 +177,7 @@ class RealtimeFeatureLoader:
         y = df['target'].copy()
         stock_codes = df['stock_code'].copy()
         
-        print(f"\n✅ 최종 데이터 준비 완료!")
+        print(f"\n 최종 데이터 준비 완료!")
         print(f"   샘플 수: {len(X):,}")
         print(f"   피쳐 수: {len(feature_cols)}")
         print(f"   상승(1): {(y==1).sum():,}개 ({(y==1).sum()/len(y)*100:.1f}%)")

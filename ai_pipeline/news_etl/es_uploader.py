@@ -7,41 +7,62 @@ es = Elasticsearch(ES_HOST)
 INDEX_NAME = "news_articles"
 
 def generate_id_from_url(url):
-    """
-    URL 문자열을 MD5 해시로 변환하여 고유 ID 생성
-    (긴 URL을 그대로 ID로 쓰기보다 해시값이 인덱싱에 유리함)
-    """
     return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 def exists_in_es(url):
-    """
-    이미 저장된 뉴스인지 확인 (중복 수집 방지용)
-    """
     doc_id = generate_id_from_url(url)
     try:
-        # HEAD 요청: 문서를 다 가져오지 않고 존재 여부만 가볍게 확인
         return es.exists(index=INDEX_NAME, id=doc_id)
     except Exception:
-        # 인덱스가 없거나 에러 시 없다고 가정
         return False
 
-
-def save_news_to_es(url, text, chunks, sentiments, related_stocks):
+def save_news_to_es(url, title, text, related_stocks, analysis_results, sentence_details, value_chain_info):
+    """
+    뉴스 데이터 저장 (구조 변경: Map -> List)
+    """
     doc_id = generate_id_from_url(url)
+    
+    # 1. 대표 감성 점수 계산
+    avg_score = 0.0
+    if analysis_results:
+        scores = [float(v.get('sentiment_score', 0)) for v in analysis_results.values()]
+        if scores:
+            avg_score = sum(scores) / len(scores)
+
+    # 2. [핵심 수정] analysis_results (Dict) -> List[Dict] 변환
+    # 예: {"005930": {...}} -> [{"stock_code": "005930", ...}]
+    # 이렇게 해야 ES 필드 개수 제한(1000개)에 걸리지 않음
+    analysis_list = []
+    if analysis_results and isinstance(analysis_results, dict):
+        for code, data in analysis_results.items():
+            # data가 딕셔너리라고 가정하고 복사 후 코드 추가
+            if isinstance(data, dict):
+                item = data.copy()
+                item['stock_code'] = code
+                analysis_list.append(item)
+            else:
+                # 데이터가 단순 값일 경우 대비
+                analysis_list.append({'stock_code': code, 'value': data})
+    
+    # 만약 이미 리스트라면 그대로 사용
+    elif isinstance(analysis_results, list):
+        analysis_list = analysis_results
+
     doc = {
         "url": url,
+        "title": title,
         "text": text,
-        "chunks": chunks,
-        "sentiments": sentiments,
-        "related_stocks": related_stocks,  # 연관 종목 코드
-        "timestamp": datetime.now().isoformat() # 수집 시간 기록
+        "related_stocks": related_stocks,
+        
+        "analysis_results": analysis_list,      # [수정됨] 리스트 형태로 저장
+        "sentence_details": sentence_details,
+        "value_chain_info": value_chain_info,
+        
+        "sentiment_score": avg_score,
+        "timestamp": datetime.now().isoformat()
     }
 
     try:
         resp = es.index(index=INDEX_NAME, id=doc_id, document=doc)
-        print(f"💾 저장 완료: {resp['_id']}") # 로그가 너무 많으면 주석처리
-        
     except Exception as e:
         print(f"❌ ES 저장 실패: {e}")
-
-

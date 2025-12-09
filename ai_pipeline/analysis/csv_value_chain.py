@@ -11,7 +11,7 @@ class CSVValueChainAnalyzer:
     """
     
     def __init__(self, csv_file_name="value_chain_data.csv"):
-        print("🔗 [CSV] 밸류체인 데이터 로딩 중...")
+        print(" [CSV] 밸류체인 데이터 로딩 중...")
         
         # 1. CSV 파일 경로 설정 (프로젝트 루트/data 폴더 안에 있다고 가정)
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +23,7 @@ class CSVValueChainAnalyzer:
     def _load_data(self):
         """CSV 파일 로드 및 전처리"""
         if not os.path.exists(self.data_path):
-            print(f"❌ 밸류체인 CSV 파일이 없습니다: {self.data_path}")
+            print(f" 밸류체인 CSV 파일이 없습니다: {self.data_path}")
             print("   -> 'data' 폴더를 만들고 CSV 파일을 넣어주세요.")
             return
 
@@ -39,14 +39,14 @@ class CSVValueChainAnalyzer:
             required_cols = ['code', 'related_code']
             
             if not all(col in self.df.columns for col in required_cols):
-                print(f"⚠️ CSV 컬럼 이름이 다릅니다. 현재 컬럼: {self.df.columns.tolist()}")
+                print(f" CSV 컬럼 이름이 다릅니다. 현재 컬럼: {self.df.columns.tolist()}")
                 print("   -> 코드 내 'required_cols' 부분을 수정하거나 CSV 헤더를 'code', 'related_code'로 바꿔주세요.")
                 return
 
-            print(f"✅ 밸류체인 데이터 로드 완료: {len(self.df):,}개 관계 정보")
+            print(f" 밸류체인 데이터 로드 완료: {len(self.df):,}개 관계 정보")
 
         except Exception as e:
-            print(f"❌ CSV 로딩 실패: {e}")
+            print(f" CSV 로딩 실패: {e}")
 
     def find_similar_stocks(self, target_code, top_n=5):
         """
