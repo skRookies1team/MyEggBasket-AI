@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # .env 파일 로드
@@ -6,7 +7,7 @@ load_dotenv()
 
 # 확인용 로그
 #print("🔍 settings.py PROJECT_ROOT =", PROJECT_ROOT)
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # .env 로드
 env_path = PROJECT_ROOT / ".env"
 #print("🔍 .env path =", env_path, ", exists =", env_path.exists())

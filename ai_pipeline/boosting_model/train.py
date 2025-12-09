@@ -129,25 +129,27 @@ class StackingEnsemble:
     #  predict_proba 추가 및 predict 표준화
     def predict_proba(self, X):
         """
-        [표준] 확률 반환 (N행 2열: [하락확률, 상승확률])
-        이 함수가 있어야 analyzer.py나 predict.py에서 에러가 안 남!
+        [수정] 학습된 컬럼과 들어온 컬럼을 동적으로 맞춰주는 안전장치 추가
         """
         if not self.is_trained:
             raise ValueError("모델이 학습되지 않았습니다.")
 
-        # 입력 X가 pandas DataFrame이면, 학습시 저장된 feature_names에 맞춤
-        try:
-            import pandas as _pd
-            if hasattr(self, 'feature_names') and self.feature_names is not None and isinstance(X, _pd.DataFrame):
-                # 누락된 칼럼은 0으로 채우고, 순서를 학습 피처 순서에 맞춤
-                missing = [c for c in self.feature_names if c not in X.columns]
-                for c in missing:
-                    X[c] = 0
-                # extra columns are ignored
-                X = X.reindex(columns=self.feature_names, fill_value=0)
-        except Exception:
-            pass
-        
+        # X가 DataFrame인 경우 컬럼 매칭 수행
+        if hasattr(self, 'feature_names') and self.feature_names is not None:
+            # 1. 학습 때 썼는데 지금 없는 컬럼 -> 0으로 채움
+            missing_cols = set(self.feature_names) - set(X.columns)
+            for c in missing_cols:
+                X[c] = 0
+
+            if hasattr(self, 'feature_names') and self.feature_names is not None:
+                # 학습 때 안 쓴 컬럼(공시 등)이 들어오면 과감히 제거
+                extra_cols = set(X.columns) - set(self.feature_names)
+                if extra_cols:
+                    X = X.drop(columns=list(extra_cols))
+
+                # 학습 때 썼던 컬럼만 순서대로 유지
+                X = X[self.feature_names]
+
         # 1. Base Model 예측
         xgb_pred = self.xgb_model.predict_proba(X)[:, 1]
         lgb_pred = self.lgb_model.predict_proba(X)[:, 1]
