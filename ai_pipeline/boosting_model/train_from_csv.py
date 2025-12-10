@@ -90,7 +90,7 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 
-    # 업로드한 파일 이름이 'final_dataset_with_gcn.csv' 라고 가정
+    # 업로드한 파일 이름이 'train_dataset.csv' 라고 가정
     csv_file_path = os.path.join(project_root, "train_dataset.csv")
 
     train_manual_csv(csv_file_path)
