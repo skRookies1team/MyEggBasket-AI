@@ -51,7 +51,7 @@ def start_scheduler():
         id='market_mode'
     )
 
-    # 2. 🌙 [퇴근/밤 모드] 매일 18:00 ~ 23:00 → 1시간마다 실행
+    # 2.  [퇴근/밤 모드] 매일 18:00 ~ 23:00 → 1시간마다 실행
     sched.add_job(
         job_wrapper,
         'cron',

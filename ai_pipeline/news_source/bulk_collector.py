@@ -127,4 +127,4 @@ def run_date_range_collection(start_date_str, end_date_str):
     print("="*60)
 
 if __name__ == "__main__":
-    run_date_range_collection("2025-10-23", "2025-10-31")
+    run_date_range_collection("2025-12-07", "2025-12-11")

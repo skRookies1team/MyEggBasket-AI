@@ -47,16 +47,16 @@ def extract_investment_info(text):
 
 def run_extraction_and_save():
     print("\n" + "="*60)
-    print("🚀 [ETL] 리포트 텍스트 추출 및 MongoDB 저장 (날짜/매수매도 포함)")
+    print(" [ETL] 리포트 텍스트 추출 및 MongoDB 저장 (날짜/매수매도 포함)")
     print("="*60)
     
     if not os.path.exists(REPORT_DIR):
-        print(f"❌ 리포트 폴더가 없습니다: {REPORT_DIR}")
+        print(f" 리포트 폴더가 없습니다: {REPORT_DIR}")
         return
 
     files = [f for f in os.listdir(REPORT_DIR) if f.endswith('.pdf')]
     if not files:
-        print("❌ 분석할 PDF 파일이 없습니다.")
+        print(" 분석할 PDF 파일이 없습니다.")
         return
 
     uploader = MongoUploader()
@@ -110,7 +110,7 @@ def run_extraction_and_save():
         success_count += 1
 
     uploader.close()
-    print(f"\n\n✅ 작업 완료! 총 {success_count}개의 리포트가 MongoDB에 저장되었습니다.")
+    print(f"\n\n 작업 완료! 총 {success_count}개의 리포트가 MongoDB에 저장되었습니다.")
 
 if __name__ == "__main__":
     run_extraction_and_save()

@@ -12,7 +12,7 @@ class KISMockTrader:
         self.access_token = None
 
         if not all([self.app_key, self.app_secret, self.acc_no]):
-            print("❌ [KIS] .env에 모의투자 계좌 정보가 없습니다.")
+            print(" [KIS] .env에 모의투자 계좌 정보가 없습니다.")
         else:
             self.auth()
 
@@ -27,9 +27,9 @@ class KISMockTrader:
         res = requests.post(f"{self.base_url}/oauth2/tokenP", headers=headers, data=json.dumps(body))
         if res.status_code == 200:
             self.access_token = res.json()["access_token"]
-            print(f"✅ [KIS] 토큰 발급 완료")
+            print(f" [KIS] 토큰 발급 완료")
         else:
-            print(f"❌ [KIS] 토큰 발급 실패: {res.text}")
+            print(f" [KIS] 토큰 발급 실패: {res.text}")
 
     def get_common_headers(self, tr_id):
         return {
@@ -54,5 +54,5 @@ class KISMockTrader:
         }
         res = requests.post(f"{self.base_url}/uapi/domestic-stock/v1/trading/order-cash", headers=headers, data=json.dumps(body))
         msg = res.json().get('msg1', '알 수 없음')
-        print(f" 🛒 [매수주문] {stock_code} {qty}주 @ {price}원 -> 결과: {msg}")
+        print(f"  [매수주문] {stock_code} {qty}주 @ {price}원 -> 결과: {msg}")
         return res.json()
