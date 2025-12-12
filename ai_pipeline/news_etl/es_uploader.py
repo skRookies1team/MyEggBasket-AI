@@ -16,7 +16,7 @@ def exists_in_es(url):
     except Exception:
         return False
 
-def save_news_to_es(url, title, text, published_date, related_stocks, analysis_results, sentence_details, value_chain_info):
+def save_news_to_es(url, title, text, published_date, related_stocks, analysis_results, sentence_details, value_chain_info, category=None, keyword=None):
     """
     뉴스 데이터 저장 (구조 변경: Map -> List)
     """
@@ -60,7 +60,9 @@ def save_news_to_es(url, title, text, published_date, related_stocks, analysis_r
         
         "sentiment_score": avg_score,
         "published_date": published_date,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "trend_category": category,
+        "trend_keyword": keyword,
     }
 
     try:
