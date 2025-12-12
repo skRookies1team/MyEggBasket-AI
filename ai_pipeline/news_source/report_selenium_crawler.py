@@ -28,7 +28,7 @@ TARGET_CODES = [code.strip() for code in TARGET_CODES]
 
 def load_stock_list():
     if not os.path.exists(DATA_PATH):
-        print(f"❌ 데이터 파일이 없습니다: {DATA_PATH}")
+        print(f" 데이터 파일이 없습니다: {DATA_PATH}")
         return []
     try:
         try:
@@ -37,10 +37,10 @@ def load_stock_list():
             df = pd.read_csv(DATA_PATH, encoding='utf-8', dtype=str)
         
         filtered_df = df[df['단축코드'].isin(TARGET_CODES)]
-        print(f"📊 타겟 종목 {len(filtered_df)}개 로드 완료.")
+        print(f" 타겟 종목 {len(filtered_df)}개 로드 완료.")
         return filtered_df[['한글 종목명', '단축코드']].values.tolist()
     except Exception as e:
-        print(f"❌ CSV 로드 실패: {e}")
+        print(f" CSV 로드 실패: {e}")
         return []
 
 def clean_filename(text):
@@ -64,7 +64,7 @@ def download_pdf(url, filename):
                 f.write(response.content)
             return True
     except Exception as e:
-        print(f"   ⚠️ 다운로드 실패: {e}")
+        print(f"    다운로드 실패: {e}")
     return False
 
 def get_driver():

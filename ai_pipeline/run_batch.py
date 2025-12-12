@@ -11,7 +11,7 @@ from ai_pipeline.analysis.sentiment_aggregator import calculate_aggregated_featu
 from ai_pipeline.storage import ElasticStorage
 
 def run_backfill():
-    print("🏭 뉴스 데이터 가공 공장 가동 시작...")
+    print(" 뉴스 데이터 가공 공장 가동 시작...")
     
     es = Elasticsearch("http://localhost:9200")
     
@@ -25,10 +25,10 @@ def run_backfill():
     )
     
     hits = resp['hits']['hits']
-    print(f"📦 원본 뉴스 {len(hits)}개를 로딩했습니다.")
+    print(f" 원본 뉴스 {len(hits)}개를 로딩했습니다.")
 
     if len(hits) == 0:
-        print("❌ 가공할 뉴스가 없습니다.")
+        print(" 가공할 뉴스가 없습니다.")
         return
 
     raw_data = []
@@ -86,19 +86,19 @@ def run_backfill():
                         'score': score
                     })
 
-    print(f"🔧 변환 완료: 총 {len(raw_data)}행 데이터 생성")
-    print(f"   👉 (진단) 감성 점수가 0이 아닌 유효 데이터: {valid_score_count}건")
+    print(f" 변환 완료: 총 {len(raw_data)}행 데이터 생성")
+    print(f"    (진단) 감성 점수가 0이 아닌 유효 데이터: {valid_score_count}건")
     
     if not raw_data:
-        print("❌ 집계할 데이터가 없습니다.")
+        print(" 집계할 데이터가 없습니다.")
         return
 
     df_features = calculate_aggregated_features(raw_data)
-    print(f"📊 집계 완료! 생성된 피처 데이터: {len(df_features)}행")
+    print(f" 집계 완료! 생성된 피처 데이터: {len(df_features)}행")
     
     storage = ElasticStorage()
     storage.save_features(df_features)
-    print("✅ 모든 작업이 완료되었습니다.")
+    print(" 모든 작업이 완료되었습니다.")
 
 if __name__ == "__main__":
     run_backfill()

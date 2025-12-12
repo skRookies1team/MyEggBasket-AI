@@ -78,6 +78,43 @@ class RealtimeFeatureLoader:
             print(f" [DEBUG] 현재 컬럼 목록: {df.columns.tolist()}")
             raise KeyError(f" 'stock_code' 컬럼을 찾을 수 없습니다.")
 
+        # 3.1 timestamp 컬럼 유연 처리: 다양한 이름을 허용하고, 없으면 stck_cntg_hour + 파일명(날짜)로 생성 시도
+        timestamp_candidates = ['timestamp', 'time', 'trade_time', 'tr_time', '체결시각', '체결시간', '체결일시', 'stck_cntg_hour']
+        found_ts = None
+        for c in timestamp_candidates:
+            if c in df.columns:
+                found_ts = c
+                break
+
+        if found_ts and found_ts != 'timestamp':
+            df = df.rename(columns={found_ts: 'timestamp'})
+
+        if 'timestamp' not in df.columns:
+            # stck_cntg_hour가 있다면 파일명에서 날짜를 추출해 조합 시도
+            if 'stck_cntg_hour' in df.columns:
+                base = os.path.basename(self.csv_path)
+                date_part = os.path.splitext(base)[0]
+                # 파일명이 YYYYMMDD 형태라면 시도
+                if len(date_part) == 8 and date_part.isdigit():
+                    # stck_cntg_hour 값이 HHMMSS 또는 HMMSS 형식일 수 있음
+                    hrs = df['stck_cntg_hour'].astype(str).fillna('0')
+                    ts_list = []
+                    for h in hrs:
+                        hstr = h.zfill(6)
+                        try:
+                            ts = pd.to_datetime(date_part + hstr, format='%Y%m%d%H%M%S', errors='coerce')
+                        except Exception:
+                            ts = pd.NaT
+                        ts_list.append(ts)
+                    df['timestamp'] = pd.to_datetime(ts_list)
+                else:
+                    # 날짜 정보가 없으면 인덱스 기반 임의 timestamp 생성 (경고 출력)
+                    print(" [WARN] CSV 파일명에서 날짜를 찾지 못해 인덱스 기반 timestamp 생성(정확하지 않을 수 있음)")
+                    df['timestamp'] = pd.to_datetime(df.index, unit='s', origin='unix')
+            else:
+                print(f" [DEBUG] 현재 컬럼 목록: {df.columns.tolist()}")
+                raise KeyError(" 'timestamp' 컬럼을 찾을 수 없습니다. 가능한 대체 컬럼(예: 'stck_cntg_hour')이 없거나 파싱에 실패했습니다.")
+
         # 4. 필수 및 기술적 지표용 컬럼 결측 처리 (0으로 채움)
         # 이 컬럼들은 없으면 0으로 채워서 계산 오류 방지
         target_cols = [

@@ -23,7 +23,7 @@ def extract_text_from_pdf(pdf_path):
         return full_text
 
     except Exception as e:
-        print(f"❌ PDF 읽기 실패 ({os.path.basename(pdf_path)}): {e}")
+        print(f" PDF 읽기 실패 ({os.path.basename(pdf_path)}): {e}")
         return None
     finally:
         if doc:
