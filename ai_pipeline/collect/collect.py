@@ -4,16 +4,32 @@ import time
 import pandas as pd
 import os
 from datetime import datetime
-# [중요] 에러 처리를 위한 모듈 추가
+# [추가] .env 파일 로드를 위한 모듈
+from dotenv import load_dotenv
+
+# [중요] 에러 처리를 위한 모듈
 from requests.exceptions import ChunkedEncodingError, ConnectionError, ReadTimeout
 from urllib3.exceptions import IncompleteRead, ProtocolError
 
 # ==========================================
-# 1. 설정 (본인의 키 값 입력)
+# 0. 환경 변수 로드 (.env)
 # ==========================================
-APP_KEY = "app_key"
-APP_SECRET = "secret_key"
+# 현재 디렉토리의 .env 파일을 읽어옵니다.
+load_dotenv()
+
+# ==========================================
+# 1. 설정 (환경 변수에서 가져오기)
+# ==========================================
+APP_KEY = os.getenv("APP_KEY")
+APP_SECRET = os.getenv("APP_SECRET")
 URL_BASE = "https://openapi.koreainvestment.com:9443"
+
+# 키 값 존재 여부 확인 (실수 방지용)
+if not APP_KEY or not APP_SECRET:
+    print("❌ Error: .env 파일에서 APP_KEY 또는 APP_SECRET을 찾을 수 없습니다.")
+    print("    1. .env 파일이 같은 폴더에 있는지 확인하세요.")
+    print("    2. .env 파일 안에 변수명이 정확한지 확인하세요.")
+    exit()
 
 # ==========================================
 # 2. 수집할 종목 리스트 (50개)
@@ -91,10 +107,10 @@ if __name__ == "__main__":
 
     if token:
         total_count = len(target_codes)
-        print(f"✅ 총 {total_count}개 종목 수집 시작 (불사신 모드 🛡️)\n")
+        print(f"✅ 총 {total_count}개 종목 수집 시작 (불사신 모드 🛡️ + 보안 강화 🔒)\n")
         
         for idx, code in enumerate(target_codes):
-            # 이미 파일이 있으면 건너뛰기 기능 (중간에 멈췄을 때 유용)
+            # 이미 파일이 있으면 건너뛰기 기능
             filename = f"{save_dir}/{code}_1Year.csv"
             if os.path.exists(filename):
                 print(f"[{idx+1}/{total_count}] {code} 이미 수집됨. 건너뜀 ->")
@@ -109,7 +125,7 @@ if __name__ == "__main__":
 
             try:
                 while True:
-                    # [수정] 위에서 만든 안전한 함수 호출
+                    # 안전한 함수 호출
                     chunk = get_minute_chart_safe(token, code, current_date, current_time)
                     
                     if not chunk: 
@@ -128,7 +144,7 @@ if __name__ == "__main__":
                     
                     # 진행률 표시
                     print(f"\r   Reading: {current_date} {current_time} ({len(all_data)} rows)", end="")
-                    time.sleep(0.2)
+                    time.sleep(0.05) # 부하 조절
                 
                 print() # 줄바꿈
 
@@ -152,4 +168,4 @@ if __name__ == "__main__":
 
         print("\n🎉 모든 종목 수집이 완료되었습니다!")
     else:
-        print("토큰 발급 실패")
+        print("토큰 발급 실패: .env 키 값을 확인하세요.")
