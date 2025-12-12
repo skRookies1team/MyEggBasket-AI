@@ -3,6 +3,8 @@ import os
 import time
 from datetime import datetime, timedelta
 
+from news_etl_runner import TrendKeywordExtractor
+
 # 프로젝트 루트 경로
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -87,6 +89,7 @@ def run_date_range_collection(start_date_str, end_date_str):
             # ---------------------------------------------------------
             #  [Core 2] 밸류체인 연관 종목 추출
             # ---------------------------------------------------------
+            top_category, top_keyword = TrendKeywordExtractor.extract_top_keyword(article_text)
             value_chain_info = []
             for stock_code in related_stocks:
                 recs = vc_analyzer.find_similar_stocks(stock_code, top_n=3)
@@ -110,7 +113,9 @@ def run_date_range_collection(start_date_str, end_date_str):
                 related_stocks=related_stocks,
                 analysis_results=analysis_results,
                 sentence_details=sentence_details,
-                value_chain_info=value_chain_info
+                value_chain_info=value_chain_info,
+                category=top_category,
+                keyword=top_keyword
             )
             
             daily_saved += 1

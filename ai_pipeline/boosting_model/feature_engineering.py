@@ -309,7 +309,12 @@ class FeatureEngineer:
             # ✅ [수정] 파일명 패턴 완화: 모든 csv 파일 대상
             all_csvs = glob.glob(os.path.join(self.data_dir, "*.csv"))
             # 필요한 경우 파일명 필터링 (예: KRX나 날짜가 포함된 것)
-            csv_files = [f for f in all_csvs if 'KRX' in f or re.search(r'\d{8}', f)]
+            csv_files = [
+                f for f in all_csvs
+                if 'KRX' in f
+                   or re.search(r'\d{8}', f)  # 기존 날짜 형식 (20251205.csv)
+                   or '_1Year' in f  # [New] 종목별 1년치 파일 (000270_1Year.csv)
+            ]
             csv_files.sort()
         else:
             print(" 처리할 CSV 파일이나 데이터 폴더가 지정되지 않았습니다.")

@@ -1,6 +1,61 @@
 import sys
 import os
 
+# 분석에 사용할 키워드 DB 정의
+KEYWORD_DB = {
+    "경제/금융": [
+        "금리 인하", "피벗", "인플레이션", "가계 부채", "환율", "강달러", "스태그플레이션",
+        "반도체", "HBM", "AI 반도체", "2차전지", "배터리", "공매도", "밸류업", "기업 가치 제고",
+        "비트코인", "가상자산", "ETF", "IPO", "전세 사기", "재건축", "재개발", "PF 위기", "미분양"
+    ],
+    "정치/사회": [
+        "총선", "정계 개편", "특검법", "거부권", "당정 갈등", "지지율",
+        "의대 증원", "의료 파업", "의료 대란", "저출산", "인구 소멸", "고령화",
+        "묻지마 범죄", "교권 침해", "마약", "연금 개혁", "노동 개혁", "늘봄 학교", "기후 동행 카드"
+    ],
+    "IT/과학": [
+        "인공지능", "생성형 AI", "ChatGPT", "Gemini", "온디바이스 AI", "AI 규제", "딥페이크",
+        "데이터 센터", "자율주행", "UAM", "로봇", "협동 로봇", "양자 컴퓨터",
+        "망 사용료", "플랫폼 규제", "5G", "6G", "우주항공청", "누리호", "스페이스X"
+    ],
+    "국제/외교": [
+        "우크라이나 전쟁", "이스라엘", "하마스", "미중 갈등", "대만 해협", "양안 관계",
+        "미국 대선", "트럼프", "해리스", "엔저", "오염수", "북한 도발", "정찰 위성",
+        "공급망", "탈중국", "희토류", "IRA", "인플레이션 감축법"
+    ],
+    "문화/라이프": [
+        "K-컬처", "OTT", "넷플릭스", "천만 영화", "K-팝", "하이브",
+        "기후 위기", "탄소 중립", "폭염", "이상 기후", "엘니뇨",
+        "숏폼", "팝업 스토어", "탕후루", "제로 슈거"
+    ]
+}
+
+
+class TrendKeywordExtractor:
+    @staticmethod
+    def extract_top_keyword(text):
+        """
+        본문에서 키워드 등장 횟수를 세어 가장 많이 언급된 (카테고리, 키워드)를 반환합니다.
+        """
+        best_category = None
+        best_keyword = None
+        max_count = 0
+
+        for category, keywords in KEYWORD_DB.items():
+            for kw in keywords:
+                # 텍스트 내 등장 횟수 카운트
+                count = text.count(kw)
+                if count > max_count:
+                    max_count = count
+                    best_keyword = kw
+                    best_category = category
+
+        # 하나도 발견되지 않았으면 None 반환
+        if max_count == 0:
+            return None, None
+
+        return best_category, best_keyword
+
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.append(ROOT_DIR)
 
@@ -35,10 +90,8 @@ def run_finance_news_etl():
             continue
 
         print(f"[{idx+1}]   분석 중: {real_url}")
-        
+
         # 2. 제목, 본문, 날짜 수집 (수정된 크롤러는 3개를 반환함)
-        crawled_data = fetch_article_text(real_url)
-        
         if not crawled_data:
             print("     본문 없음/짧음 -> Pass")
             continue
@@ -79,6 +132,10 @@ def run_finance_news_etl():
                         "reason": r['reason']
                     })
 
+        top_category, top_keyword = TrendKeywordExtractor.extract_top_keyword(article_text)
+        if top_keyword:
+            print(f"    [Trend] {top_category} | {top_keyword}")
+
         # ---------------------------------------------------------
         #  [Core 3] 최종 저장
         # ---------------------------------------------------------
@@ -93,7 +150,9 @@ def run_finance_news_etl():
             related_stocks=related_stocks,
             analysis_results=analysis_results,
             sentence_details=sentence_details,
-            value_chain_info=value_chain_info
+            value_chain_info=value_chain_info,
+            category=top_category,
+            keyword=top_keyword
         )
         saved_count += 1
 
