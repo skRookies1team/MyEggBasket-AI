@@ -153,8 +153,6 @@ class GCNFeatureExtractor:
     
 
 
-    
-
 if __name__ == "__main__":
     # 테스트
     extractor = GCNFeatureExtractor()
