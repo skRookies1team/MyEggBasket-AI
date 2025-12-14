@@ -10,7 +10,7 @@ def load_data_and_merge_news(date_str, data_dir, es_client):
     """특정 날짜의 CSV를 읽고, 해당 날짜의 뉴스 감성점수를 매핑"""
     csv_path = os.path.join(data_dir, f"{date_str}.csv")
     if not os.path.exists(csv_path):
-        print(f"   ⚠️ 파일 없음: {csv_path}")
+        print(f"    파일 없음: {csv_path}")
         return None
 
     # 변수 초기화
@@ -46,7 +46,7 @@ def load_data_and_merge_news(date_str, data_dir, es_client):
                 df_raw.to_csv(temp_csv_path, index=False)
                 target_csv_path = temp_csv_path  # 로더가 임시 파일을 읽도록 설정
         except Exception as e:
-            print(f"   ⚠️ CSV 전처리 중 오류 (원본 사용): {e}")
+            print(f"    CSV 전처리 중 오류 (원본 사용): {e}")
 
         # ------------------------------------------------------------------
         # 1. 시세 데이터 로드 및 기술적 지표 생성
@@ -115,7 +115,7 @@ def load_data_and_merge_news(date_str, data_dir, es_client):
         df_result['sentiment_score'] = df_result['stock_code'].map(sentiment_map).fillna(0.0)
 
     except Exception as e:
-        print(f"   ❌ 데이터 로드 중 치명적 오류: {e}")
+        print(f"    데이터 로드 중 치명적 오류: {e}")
         return None
 
     finally:
@@ -124,6 +124,6 @@ def load_data_and_merge_news(date_str, data_dir, es_client):
             try:
                 os.remove(temp_csv_path)
             except Exception as e:
-                print(f"   ⚠️ 임시 파일 삭제 실패: {e}")
+                print(f"    임시 파일 삭제 실패: {e}")
 
     return df_result

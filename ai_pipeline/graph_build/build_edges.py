@@ -147,7 +147,20 @@ def build_graph_structure():
             
     print(f" 최종 통합 엣지 개수: {len(edges)}개")
 
-    # (3) 저장
+    # (3) [NEW] 1년치 가격 상관관계 엣지 추가
+    corr_path = os.path.join(project_root, "data", "historical_correlations.csv")
+    if os.path.exists(corr_path):
+        df_corr = pd.read_csv(corr_path)
+        print(f" 1년치 상관관계 엣지 {len(df_corr)}개 추가 중...")
+        for _, row in df_corr.iterrows():
+            src, dst = str(row['source']), str(row['target'])
+            # 6자리 포맷팅
+            src = src.zfill(6)
+            dst = dst.zfill(6)
+            if src > dst: src, dst = dst, src
+            edges.add((src, dst))
+
+    # (4) 저장
     save_path = os.path.join(project_root, "data", "graph_edges.csv")
     df_edges = pd.DataFrame(list(edges), columns=['source', 'target'])
     df_edges.to_csv(save_path, index=False)
