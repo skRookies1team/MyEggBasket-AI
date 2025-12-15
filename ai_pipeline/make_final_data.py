@@ -27,9 +27,10 @@ except ImportError:
         return news_items[0]['sentiment_score']
 
 # 경로 설정
+DATA_DIR = os.path.join(project_root, 'data')
 GCN_DIR = os.path.join(project_root, 'ai_pipeline/gcn_model')
-EMBEDDING_PATH = os.path.join(GCN_DIR, 'gcn_embeddings.npy')
-NODE_LIST_PATH = os.path.join(GCN_DIR, 'gcn_node_list.csv')
+EMBEDDING_PATH = os.path.join(DATA_DIR, 'gcn_embeddings.npy')
+NODE_LIST_PATH = os.path.join(DATA_DIR, 'gcn_node_list.csv')
 OUTPUT_PATH = os.path.join(project_root, 'final_dataset_with_gcn.csv')
 
 def make_complete_dataset():
