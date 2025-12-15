@@ -3,6 +3,7 @@ import sys
 from elasticsearch import Elasticsearch, helpers
 from datetime import datetime
 from tqdm import tqdm
+from ai_pipeline.config.settings import ES_HOST
 
 # 경로 설정
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +16,7 @@ from ai_pipeline.mapping.stock_mapping import StockMapper
 def run_technical_etl():
     print("📈 [AI Score] 전 종목 기술적 점수 계산 시작...")
     
-    es = Elasticsearch("http://localhost:9200")
+    es = Elasticsearch(ES_HOST)
     analyzer = TechnicalAnalyzer()
     mapper = StockMapper() # 종목 리스트 로드
     

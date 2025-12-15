@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로 설정 (ai_pipeline 폴더의 상위 폴더)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,7 +112,7 @@ def create_labeled_dataset(data_dir, output_path):
 
     # [핵심 수정 3] ES 데이터(감성점수, AI Score) 병합
     print(" Elasticsearch 데이터 조회 (시간가중 감성 + AI Score)...")
-    es = Elasticsearch("http://localhost:9200")
+    es = Elasticsearch(ES_HOST)
     
     if es.ping():
         es_data_list = []

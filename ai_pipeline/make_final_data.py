@@ -4,6 +4,7 @@ import os
 import sys
 from datetime import datetime
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 # ---------------------------------------------------------
 # 1. 환경 설정 및 모듈 로드
@@ -107,7 +108,7 @@ def make_complete_dataset():
     # ---------------------------------------------------------
     print(" ES 데이터 조회 및 시간 가중 감성 점수 계산 중...")
     
-    es = Elasticsearch("http://localhost:9200")
+    es = Elasticsearch(ES_HOST)
     if not es.ping():
         print(" Elasticsearch 연결 실패")
         return

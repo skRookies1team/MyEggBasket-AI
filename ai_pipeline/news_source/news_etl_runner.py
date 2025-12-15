@@ -92,6 +92,7 @@ def run_finance_news_etl():
         print(f"[{idx+1}]   분석 중: {real_url}")
 
         # 2. 제목, 본문, 날짜 수집 (수정된 크롤러는 3개를 반환함)
+        crawled_data = fetch_article_text(real_url)
         if not crawled_data:
             print("     본문 없음/짧음 -> Pass")
             continue

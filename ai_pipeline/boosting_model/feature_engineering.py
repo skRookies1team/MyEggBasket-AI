@@ -8,6 +8,7 @@ import re
 import glob
 from datetime import datetime, timedelta
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
@@ -182,7 +183,7 @@ class FeatureEngineer:
             self.gcn_loader = None
 
         try:
-            self.es = Elasticsearch("http://localhost:9200")
+            self.es = Elasticsearch(ES_HOST)
             if not self.es.ping(): self.es = None
         except:
             self.es = None

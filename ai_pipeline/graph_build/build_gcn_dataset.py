@@ -10,8 +10,7 @@ from torch_geometric.data import Data
 # 경로 설정
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
-es = Elasticsearch("http://localhost:9200")
-
+es = Elasticsearch(ES_HOST)
 
 def load_graph_data():
     print(" 그래프 데이터(CSV/JSON) 로딩 중...")
