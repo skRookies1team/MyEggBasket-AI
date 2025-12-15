@@ -9,6 +9,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 from ai_pipeline.boosting_model.train import StackingEnsemble
 
+#  [추가] 밸류체인 전략 모듈 Import
+try:
+    from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
+except ImportError:
+    print(" [Warning] ValueChainStrategy를 찾을 수 없습니다.")
+    ValueChainStrategy = None
+
 
 def run_prediction_pipeline(csv_path=None):
     """
@@ -45,6 +52,9 @@ def run_prediction_pipeline(csv_path=None):
     try:
         # 예측용 피처 생성 (y값은 없음)
         features_ret = engineer.create_final_features()
+
+        if features_ret is None:
+            return None
 
         if len(features_ret) == 3:
             X, _, stock_codes = features_ret
@@ -96,6 +106,29 @@ def run_prediction_pipeline(csv_path=None):
 
 
 if __name__ == "__main__":
+    # 1. 예측 실행
     df = run_prediction_pipeline()
+    
     if df is not None:
+        print("\n [AI 예측 결과 Top 10]")
         print(df.sort_values('ai_score', ascending=False).head(10))
+
+        # ---------------------------------------------------------
+        #  [Step 3.5] 밸류체인 분석 (이 파일 단독 실행 시 작동)
+        # ---------------------------------------------------------
+        if ValueChainStrategy:
+            print("\n" + "=" * 60)
+            print(" [Step 3.5] 밸류체인 전략 분석 (Predict 단독 실행)")
+            print("=" * 60)
+            
+            vc_strategy = ValueChainStrategy()
+            recommendation_df = vc_strategy.analyze_predictions(df)
+            
+            if not recommendation_df.empty:
+                print(f"\n >>> 밸류체인 동반 상승 추천 종목 ({len(recommendation_df)}건) <<<")
+                for idx, row in recommendation_df.head(5).iterrows():
+                    print(f" [{idx+1}] {row['Rationale']}")
+                    print(f"       매수 추천: {row['Main_Stock']} & {row['Target_Stock']}")
+                    print("-" * 50)
+            else:
+                print(" -> 조건에 맞는 밸류체인 동반 상승 종목이 없습니다.")
