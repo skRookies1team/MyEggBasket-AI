@@ -97,13 +97,10 @@ class RealtimeFeatureLoader:
         result_dfs = []
 
         for stock_code, group in df.groupby('stock_code'):
-            # 1분봉 리샘플링
             numeric_cols = group.select_dtypes(include=[np.number]).columns
             resampled = group[numeric_cols].resample('1min').last().ffill()
 
             resampled['stock_code'] = stock_code
-
-            # --- [수정] 호가 관련 지표 제거, 시세 지표 위주 구성 ---
 
             # 1. 가격 변화율
             resampled['price_change_1'] = resampled['stck_prpr'].pct_change(1)
@@ -115,7 +112,7 @@ class RealtimeFeatureLoader:
                 ma = resampled['stck_prpr'].rolling(window=w).mean()
                 resampled[f'price_vs_ma{w}'] = (resampled['stck_prpr'] - ma) / (ma + 1e-8)
 
-            # 3. 거래대금 변화율 (없으면 0)
+            # 3. 거래대금 변화율
             if 'acml_tr_pbmn' in resampled.columns:
                 resampled['tr_amount_change'] = resampled['acml_tr_pbmn'].pct_change(1)
             else:
@@ -127,48 +124,80 @@ class RealtimeFeatureLoader:
             resampled['momentum_5'] = resampled['stck_prpr'] - resampled['stck_prpr'].shift(5)
             resampled['momentum_10'] = resampled['stck_prpr'] - resampled['stck_prpr'].shift(10)
 
-            # 5. 전일대비율 (없으면 0)
+            # 5. 전일대비율
             if 'prdy_ctrt' not in resampled.columns:
                 resampled['prdy_ctrt'] = 0.0
 
-            # 6. 타겟 생성 (5분 뒤 가격 상승 여부)
-            LOOK_AHEAD = 5
-            THRESHOLD = 0.003
+            # ✅ [핵심 수정] Target 생성 로직 완화
+            LOOK_AHEAD = 5  # 5분 뒤 가격
+            THRESHOLD = 0.001  # 0.1%로 낮춤 (기존 0.3%)
+
             future_price = resampled['stck_prpr'].shift(-LOOK_AHEAD)
             ret = (future_price - resampled['stck_prpr']) / (resampled['stck_prpr'] + 1e-8)
+
+            # ✅ [추가] 타겟 생성 전 데이터 검증
+            valid_ret = ret.dropna()
+            if len(valid_ret) > 0:
+                positive_count = (valid_ret > THRESHOLD).sum()
+                print(
+                    f"   [{stock_code}] Target 후보: {len(valid_ret)}개, 상승: {positive_count}개 ({positive_count / len(valid_ret) * 100:.1f}%)")
+
             resampled['target'] = (ret > THRESHOLD).astype(int)
 
             result_dfs.append(resampled.reset_index())
 
         if not result_dfs: return pd.DataFrame()
-        return pd.concat(result_dfs, ignore_index=True)
+
+        final_df = pd.concat(result_dfs, ignore_index=True)
+
+        # ✅ [최종 검증] Target 분포 출력
+        total_targets = final_df['target'].dropna()
+        if len(total_targets) > 0:
+            up_count = (total_targets == 1).sum()
+            print(
+                f"\n [Target 생성 완료] 전체: {len(total_targets)}개, 상승(1): {up_count}개 ({up_count / len(total_targets) * 100:.2f}%)")
+
+        return final_df
 
     def prepare_features(self):
-        """최종 피쳐 반환"""
+        """최종 피쳐 데이터 준비"""
+        # 1. 로드
         df = self.load_and_preprocess()
-        if df is None or df.empty: return None, None, None
 
+        if df is None or df.empty:
+            return None, None, None
+
+        # 2. 지표 생성
         df = self.create_technical_features(df)
-        if df is None or df.empty: return None, None, None
 
+        if df.empty:
+            return None, None, None
+
+        # 3. 결측치 제거
         df = df.dropna()
-        if len(df) == 0: return None, None, None
+        if len(df) == 0:
+            return None, None, None
 
-        # [최종 피처 목록] 호가 관련 피처(spread, buy_strength 등) 삭제됨
+        # 4. 피쳐 선택
+        # [수정] 'timestamp'를 반드시 포함해야 나중에 날짜별 뉴스를 붙일 수 있습니다.
         feature_cols = [
-            'prdy_ctrt',  # 전일대비율 (계산됨)
+            'timestamp',  # <--- [중요] 여기 추가!
+            'prdy_ctrt',
             'price_change_1', 'price_change_5', 'price_change_10',
-            'price_vs_ma5', 'price_vs_ma20',
-            'tr_amount_change',  # 거래대금 변화
-            'volatility_5', 'volatility_10',
-            'momentum_5', 'momentum_10'
+            'price_vs_ma5', 'price_vs_ma20', 'price_vs_ma60',
+            'tr_amount_change',
+            'volatility_5', 'volatility_10'
         ]
 
-        # 혹시 없는 컬럼 0 처리
-        for c in feature_cols:
-            if c not in df.columns: df[c] = 0.0
+        # 데이터프레임에 실제 존재하는 컬럼만 선택
+        valid_cols = [c for c in feature_cols if c in df.columns]
 
-        X = df[feature_cols].copy()
+        # 없는 컬럼 0.0 처리 (timestamp 제외)
+        for c in feature_cols:
+            if c not in df.columns and c != 'timestamp':
+                df[c] = 0.0
+
+        X = df[valid_cols].copy()  # valid_cols 사용
         y = df['target'].copy()
         stock_codes = df['stock_code'].copy()
 
