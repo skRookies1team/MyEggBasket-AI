@@ -1,10 +1,11 @@
 from elasticsearch import Elasticsearch, helpers
 import pandas as pd
 import math
+from ai_pipeline.config.settings import ES_HOST
 
 class ElasticStorage:
-    def __init__(self, host="http://localhost:9200"):
-        self.es = Elasticsearch(host)
+    def __init__(self):
+        self.es = Elasticsearch(ES_HOST)
         
         # 집계된 데이터가 들어갈 인덱스 이름
         self.feature_index = "stock_features_v1"

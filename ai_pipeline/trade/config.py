@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로 찾기
 def _find_project_root(target_pkg='ai_pipeline'):
@@ -19,7 +20,6 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 # 주요 경로
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-ES_HOST = "http://localhost:9200"
 
 # [핵심 기능] data 폴더 스캔하여 날짜 리스트 자동 생성
 def get_auto_target_dates(data_dir):

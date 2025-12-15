@@ -4,6 +4,7 @@ import pandas as pd
 import itertools
 import re
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로 찾기
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +14,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # ES 연결
-es = Elasticsearch("http://localhost:9200")
+es = Elasticsearch(ES_HOST)
 
 
 # 1. 밸류체인(고정 관계) 로드 함수 (User CSV 맞춤형)

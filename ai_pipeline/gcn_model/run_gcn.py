@@ -9,6 +9,7 @@ import torch_geometric.transforms as T
 import numpy as np
 import pandas as pd
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로 설정 (기존과 동일하게 유지)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +23,7 @@ class GraphDataLoader:
     def __init__(self):
         # 데이터 경로를 프로젝트 구조에 맞게 설정
         self.edge_path = os.path.join(project_root, "data", "graph_edges.csv")
-        self.es = Elasticsearch("http://localhost:9200")
+        self.es = Elasticsearch(ES_HOST)
 
     def load_data(self):
         print(" [GraphDataLoader] 데이터 로딩 시작...")

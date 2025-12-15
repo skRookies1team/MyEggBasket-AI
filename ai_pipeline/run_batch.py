@@ -2,6 +2,7 @@ import sys
 import os
 import pandas as pd
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -13,7 +14,7 @@ from ai_pipeline.storage import ElasticStorage
 def run_backfill():
     print(" 뉴스 데이터 가공 공장 가동 시작...")
     
-    es = Elasticsearch("http://localhost:9200")
+    es = Elasticsearch(ES_HOST)
     
     resp = es.search(
         index="news_articles",
