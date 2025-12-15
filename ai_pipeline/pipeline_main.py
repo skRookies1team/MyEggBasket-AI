@@ -14,6 +14,7 @@ from ai_pipeline.gcn_model.run_gcn import train_gcn
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
 from ai_pipeline.boosting_model.predict import run_prediction
 from ai_pipeline.boosting_model.train_pipeline import run_full_training_pipeline
+from ai_pipeline.config.settings import ES_HOST
 
 def show_value_chain_recommendations():
     """
@@ -21,7 +22,7 @@ def show_value_chain_recommendations():
     """
     print("\n [Step 5/6] 최신 뉴스 기반 밸류체인 분석 (CSV 팩트 기반)")
     
-    es = Elasticsearch("http://localhost:9200")
+    es = Elasticsearch(ES_HOST)
     try:
         # 최신 뉴스 10개만 샘플링
         resp = es.search(
