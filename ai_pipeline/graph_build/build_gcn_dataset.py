@@ -41,36 +41,50 @@ def load_graph_data():
     
     return edges_df, idx_to_node_int
 
+
 def get_node_features(idx_to_node):
     """
     각 노드(점)가 가질 능력치(Feature) 벡터를 만듭니다.
+    수정사항: sentiment_volatility, sentiment_trend 제외
     """
     print(" 노드 특징(Feature) 벡터 생성 중 (ES 조회 포함)...")
-    
+
     num_nodes = len(idx_to_node)
+    # [수정] 피처 차원: [Sentiment_Score, Is_News, Is_Stock] (3차원)
     x = torch.zeros((num_nodes, 3), dtype=torch.float)
-    
+
     for idx in range(num_nodes):
         node_id = idx_to_node[idx]
-        
+
         # 1. 종목 코드인 경우
         if node_id.isdigit() and len(node_id) == 6:
-            x[idx, 0] = 0.0
-            x[idx, 1] = 0.0
-            x[idx, 2] = 1.0
+            x[idx, 0] = 0.0  # 감성점수 없음
+            x[idx, 1] = 0.0  # 뉴스 아님
+            x[idx, 2] = 1.0  # 주식 맞음
             
         # 2. 뉴스 노드인 경우
         else:
             if es:
                 try:
                     res = es.get(index="news_articles", id=node_id)
-                    sentiments = res['_source'].get('sentiments', [0.0])
-                    avg_sentiment = np.mean(sentiments) if sentiments else 0.0
-                    
-                    x[idx, 0] = avg_sentiment
-                    x[idx, 1] = 1.0
-                    x[idx, 2] = 0.0
-                except:
+                    source = res['_source']
+
+                    # [수정] ES 데이터 구조에 맞춰 점수 추출 (volatility/trend 제외)
+                    sentiment_val = 0.0
+
+                    # 1순위: 최상위 필드 확인
+                    if 'sentiment_score' in source:
+                        sentiment_val = float(source['sentiment_score'])
+                    # 2순위: analysis_results 내부 확인
+                    elif 'analysis_results' in source and source['analysis_results']:
+                        # 리스트의 첫 번째 분석 결과 사용
+                        sentiment_val = float(source['analysis_results'][0].get('sentiment_score', 0.0))
+
+                    x[idx, 0] = sentiment_val
+                    x[idx, 1] = 1.0  # 뉴스 맞음
+                    x[idx, 2] = 0.0  # 주식 아님
+                except Exception as e:
+                    # 에러 시 기본값
                     x[idx, 0] = 0.0
                     x[idx, 1] = 1.0
                     x[idx, 2] = 0.0
@@ -79,8 +93,8 @@ def get_node_features(idx_to_node):
                 x[idx, 1] = 1.0
                 x[idx, 2] = 0.0
 
-    print(" 노드 특징 생성 완료.")
-    return x
+        print(" 노드 특징 생성 완료.")
+        return x
 
 def create_pytorch_dataset():
     # 1. 데이터 로드

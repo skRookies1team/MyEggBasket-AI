@@ -102,32 +102,30 @@ class GCNFeatureExtractor:
         if self.data is None or self.model is None: return {}
 
         with torch.no_grad():
-            # ✅ [수정] GAE 모델은 encode 메서드를 사용해야 함
             try:
                 embeddings = self.model.encode(self.data.x, self.data.edge_index)
             except AttributeError:
-                # 일반 GCN일 경우 forward 호출
                 embeddings = self.model(self.data.x, self.data.edge_index)
-                
+
         emb_np = embeddings.cpu().numpy()
-        
+
         mapping = {}
-        
-        # 1순위: .pt 파일 내장 정보
+
+        # [수정] 인덱스(v)를 int로 변환하여 저장
         if hasattr(self.data, 'stock_to_idx'):
-            idx_to_stock = {v: k for k, v in self.data.stock_to_idx.items()}
-        # 2순위: JSON 파일
+            idx_to_stock = {int(v): k for k, v in self.data.stock_to_idx.items()}
         else:
             idx_to_stock = self._load_json_mapping()
-            
+
         if idx_to_stock:
             for idx, vector in enumerate(emb_np):
+                # idx는 정수이므로 이제 매칭됨
                 if idx in idx_to_stock:
                     code = idx_to_stock[idx]
                     mapping[code] = vector
         else:
             print("  매핑 정보 없음: GCN 피처를 사용할 수 없습니다.")
-            
+
         return mapping
 
     def add_gcn_features(self, df, code_col='code'):
@@ -235,37 +233,152 @@ class FeatureEngineer:
         return None
 
     def merge_sentiment_scores(self, X, stock_codes, current_file_path):
+        """
+        [수정] 파일명 기준 단일 집계가 아니라, 데이터의 타임스탬프를 기준으로
+        '일자별(Daily)' 감성 점수/변동성/트렌드를 매핑합니다.
+        """
         if isinstance(stock_codes, pd.Series): stock_codes = stock_codes.tolist()
+        unique_codes = list(set(stock_codes))
+
+        # 1. 초기화
         X['sentiment_score'] = 0.0
-        if not self.es: return X
+        X['sentiment_volatility'] = 0.0
+        X['sentiment_trend'] = 0.0
 
-        target_date = self._get_date_from_filename(current_file_path)
-        if target_date:
-            end_dt = target_date.replace(hour=23, minute=59, second=59)
-            start_dt = end_dt - timedelta(days=2)
-            range_filter = {"range": {"timestamp": {"gte": start_dt.isoformat(), "lte": end_dt.isoformat()}}}
-        else:
-            range_filter = {"match_all": {}}
+        if not self.es or 'timestamp' not in X.columns:
+            return X
 
-        try:
-            body = {
-                "size": 0, "query": range_filter,
-                "aggs": {
-                    "by_stock": {
-                        "terms": {"field": "related_stocks.keyword", "size": 3000},
-                        "aggs": {"avg_sentiment": {"avg": {"field": "sentiment_score"}}}
+        # 2. 데이터의 기간 확인 (Min/Max Date)
+        # 문자열이 아닌 datetime 객체여야 합니다.
+        if not pd.api.types.is_datetime64_any_dtype(X['timestamp']):
+            try:
+                X['timestamp'] = pd.to_datetime(X['timestamp'])
+            except:
+                return X
+
+        min_date = X['timestamp'].min()
+        max_date = X['timestamp'].max()
+
+        # 검색 범위 설정 (데이터 시작일 - 2일 ~ 종료일)
+        start_dt = min_date - timedelta(days=2)
+        end_dt = max_date + timedelta(days=1)  # 넉넉하게
+
+        # 3. ES 집계 쿼리: 종목별 -> 일자별(Daily) -> 통계
+        body = {
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {"range": {"published_date": {"gte": start_dt.isoformat(), "lte": end_dt.isoformat()}}},
+                        {"terms": {"related_stocks.keyword": unique_codes}}  # 현재 파일의 종목만 필터링
+                    ]
+                }
+            },
+            "aggs": {
+                "by_stock": {
+                    "terms": {"field": "related_stocks.keyword", "size": 100},  # 종목별 버킷
+                    "aggs": {
+                        "by_day": {
+                            "date_histogram": {
+                                "field": "published_date",
+                                "calendar_interval": "day",  # 일별 집계
+                                "format": "yyyy-MM-dd"
+                            },
+                            "aggs": {
+                                "avg_sent": {"avg": {"field": "sentiment_score"}},
+                                "avg_vol": {"avg": {"field": "analysis_results.sentiment_volatility"}},
+                                "avg_trend": {"avg": {"field": "analysis_results.sentiment_trend"}}
+                            }
+                        }
                     }
                 }
             }
+        }
+
+        try:
             resp = self.es.search(index="news_articles", body=body)
-            # 안전하게 버킷 접근
+
+            # 4. 조회 결과 딕셔너리로 변환 {(종목코드, 날짜): {features...}}
+            sentiment_map = {}
+
             if 'aggregations' in resp and 'by_stock' in resp['aggregations']:
-                buckets = resp['aggregations']['by_stock']['buckets']
-                score_map = {b['key']: b['avg_sentiment']['value'] for b in buckets if b['avg_sentiment']['value'] is not None}
-                
-                sentiment_list = [score_map.get(str(code).zfill(6), 0.0) for code in stock_codes]
-                X['sentiment_score'] = sentiment_list
-        except: pass 
+                for stock_bucket in resp['aggregations']['by_stock']['buckets']:
+                    code = stock_bucket['key']
+
+                    for date_bucket in stock_bucket['by_day']['buckets']:
+                        date_str = date_bucket['key_as_string']  # "2025-12-05"
+
+                        vals = {
+                            'score': date_bucket['avg_sent']['value'],
+                            'vol': date_bucket['avg_vol']['value'],
+                            'trend': date_bucket['avg_trend']['value']
+                        }
+                        # None 체크
+                        vals = {k: (v if v is not None else 0.0) for k, v in vals.items()}
+
+                        sentiment_map[(code, date_str)] = vals
+
+            # 5. DataFrame에 매핑
+            # X에 임시 날짜 컬럼 생성 (문자열 매칭용)
+            X['temp_date_key'] = X['timestamp'].dt.strftime('%Y-%m-%d')
+
+            # 매핑 함수 정의
+            def get_sent_values(row):
+                # stock_code 컬럼명이 'stock_code' 혹은 'stck_shrn_iscd' 라고 가정
+                code = str(row.get('stock_code', row.get('stck_shrn_iscd', ''))).zfill(6)
+                date_key = row['temp_date_key']
+
+                # (종목, 날짜)로 조회
+                if (code, date_key) in sentiment_map:
+                    data = sentiment_map[(code, date_key)]
+                    return pd.Series([data['score'], data['vol'], data['trend']])
+                else:
+                    return pd.Series([0.0, 0.0, 0.0])
+
+            # apply 적용 (속도를 위해 벡터화할 수도 있지만, 가독성을 위해 apply 사용)
+            # 데이터 양이 많다면 merge 방식이 더 빠릅니다.
+
+            # [성능 개선 버전: Merge 사용]
+            # 맵을 DF로 변환
+            map_data = []
+            for (c, d), v in sentiment_map.items():
+                map_data.append({
+                    'join_code': c,
+                    'join_date': d,
+                    'sent_score_daily': v['score'],
+                    'sent_vol_daily': v['vol'],
+                    'sent_trend_daily': v['trend']
+                })
+
+            if map_data:
+                sent_df = pd.DataFrame(map_data)
+
+                # 원본 DF에 조인 키 생성
+                # stock_code가 여러 컬럼명일 수 있으니 확인
+                code_col_name = 'stck_shrn_iscd' if 'stck_shrn_iscd' in X.columns else 'stock_code'
+
+                # 병합 전 타입 통일
+                X['join_code'] = X[code_col_name].astype(str).str.zfill(6)
+                X['join_date'] = X['temp_date_key']
+
+                # Left Join
+                X = pd.merge(X, sent_df, on=['join_code', 'join_date'], how='left')
+
+                # NaN 채우기 및 컬럼명 정리
+                X['sentiment_score'] = X['sent_score_daily'].fillna(0.0)
+                X['sentiment_volatility'] = X['sent_vol_daily'].fillna(0.0)
+                X['sentiment_trend'] = X['sent_trend_daily'].fillna(0.0)
+
+                # 임시 컬럼 삭제
+                X.drop(columns=['join_code', 'join_date', 'sent_score_daily', 'sent_vol_daily', 'sent_trend_daily'],
+                       inplace=True, errors='ignore')
+
+            X.drop(columns=['temp_date_key'], inplace=True, errors='ignore')
+
+        except Exception as e:
+            print(f" [ES Error] 일자별 감성 집계 실패: {e}")
+            pass
+
         return X
 
     def _process_single_file(self, csv_file):
