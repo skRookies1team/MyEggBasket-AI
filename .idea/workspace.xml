@@ -5,10 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/final_order_plan.csv" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/final_order_plan.csv" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/predict.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/predict_main.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/predict_main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/strategy/value_chain_strategy.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/strategy/value_chain_strategy.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/graph_edges.csv" beforeDir="false" afterPath="$PROJECT_DIR$/data/graph_edges.csv" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

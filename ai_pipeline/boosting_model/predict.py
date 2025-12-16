@@ -3,12 +3,13 @@ import os
 import pandas as pd
 import numpy as np
 
+
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 from ai_pipeline.boosting_model.train import StackingEnsemble
-
+from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
 def run_prediction_pipeline(csv_path=None):
 

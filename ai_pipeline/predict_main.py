@@ -52,49 +52,39 @@ def run_pipeline_with_rebalancing():
         return
 
     # ---------------------------------------------------------
-    # [Step 3] 유망 종목 필터링 (Strategy 적용)
+    # [Step 3] 밸류체인 전략으로 '진짜배기' 신규 종목 발굴 (통합)
     # ---------------------------------------------------------
-    print("\n [Step 3] 밸류체인 전략으로 '진짜배기' 신규 종목 발굴")
+    print("\n [Step 3] 밸류체인 전략 분석: 주도주 기반 파급 효과(Spillover) 종목 발굴")
 
-    # 전략 실행
     vc_strategy = ValueChainStrategy()
+
+    # 1. 전략 분석 실행 (여기서 한 번만 실행!)
+    #    -> AI 점수가 높은 대장주(Main)와 연관된 저평가 알짜주(Target)를 찾습니다.
     rec_df = vc_strategy.analyze_predictions(prediction_df)
 
     recommended_codes = []
+
     if not rec_df.empty:
-        # 상위 5개 테마(쌍)만 선정하여 집중 투자
+        print(f" -> 💡 밸류체인 시너지 종목 {len(rec_df)}개 발견!")
+
+        # 2. 결과 출력 및 저장 (Top 5만 화면 표시)
+        print("\n [밸류체인 추천 Top 5]")
+        for idx, row in rec_df.head(5).iterrows():
+            print(f"  [{idx + 1}] {row['Rationale']}")
+            # print(f"       (대장주: {row['Main_Stock']} -> 수혜주: {row['Target_Stock']})")
+
+        # 전체 결과 파일 저장
+        rec_save_path = os.path.join(os.path.dirname(__file__), "value_chain_recommendations.csv")
+        rec_df.to_csv(rec_save_path, index=False, encoding='utf-8-sig')
+        print(f"\n    * 상세 리포트 저장 완료: {rec_save_path}")
+
+        # 3. 리밸런싱용 코드 추출 (Target_Code)
+        #    상위 5개(또는 전체) 종목만 포트폴리오 편입 후보로 선정
         top_picks = rec_df.head(5)
         recommended_codes = top_picks['Target_Code'].unique().tolist()
 
-        print(f" -> 밸류체인 시너지 종목 {len(recommended_codes)}개 발견:")
-        for _, row in top_picks.iterrows():
-            print(f"    * {row['Target_Stock']}({row['Target_Score']}점): {row['Rationale']}")
     else:
-        print(" -> 밸류체인 조건에 부합하는 강력한 신규 추천 종목이 없습니다.")
-
-
-    # ---------------------------------------------------------
-    #  [Step 3.5] 밸류체인 전략 분석 (근거 도출 & 동반 매수 추천)
-    # ---------------------------------------------------------
-    print("\n [Step 3.5] 밸류체인 전략 분석 (근거 도출)")
-    
-    vc_strategy = ValueChainStrategy()
-    recommendation_df = vc_strategy.analyze_predictions(prediction_df)
-    
-    if not recommendation_df.empty:
-        print(f"\n >>> 밸류체인 동반 상승 추천 종목 ({len(recommendation_df)}건) <<<")
-        # 상위 5개 출력
-        for idx, row in recommendation_df.head(5).iterrows():
-            print(f" [{idx+1}] {row['Rationale']}")
-            print(f"       매수 추천: {row['Main_Stock']} & {row['Target_Stock']}")
-            print("-" * 50)
-            
-        # 결과 저장
-        rec_save_path = os.path.join(os.path.dirname(__file__), "value_chain_recommendations.csv")
-        recommendation_df.to_csv(rec_save_path, index=False, encoding='utf-8-sig')
-        print(f" 밸류체인 추천 결과 저장 완료: {rec_save_path}")
-    else:
-        print(" -> 조건에 맞는 밸류체인 동반 상승 종목이 없습니다.")
+        print(" -> 밸류체인 조건(대장주 급등 & 연관주 동반 상승)에 부합하는 종목이 없습니다.")
 
 
     # ---------------------------------------------------------

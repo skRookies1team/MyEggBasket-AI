@@ -48,22 +48,16 @@ class ValueChainStrategy:
         for _, row in strong_buy_df.iterrows():
             main_code = row['code']
             main_score = row['ai_score']
-            main_name = self.vc_analyzer.get_stock_name(main_code) 
+            main_name = self.vc_analyzer.get_stock_name(main_code)
 
             # -------------------------------------------------------
             # [Step 1] 밸류체인 연관 종목 조회 및 나열
             # -------------------------------------------------------
-            related_stocks = self.vc_analyzer.find_similar_stocks(main_code, top_n=20)
-            
+            related_stocks = self.vc_analyzer.find_similar_stocks(main_code)
+
             if not related_stocks:
                 # 연관 종목이 없는 경우 스킵
                 continue
-
-            print(f"\n  주도주 분석: {main_name} ({main_code}) | AI 점수: {main_score}점")
-            
-            # 연관 종목 이름들만 모아서 출력 (사용자 요청 1)
-            rel_names = [r['name'] for r in related_stocks]
-            print(f"    ㄴ  발견된 밸류체인 종목 ({len(rel_names)}개): {', '.join(rel_names)}")
 
             # -------------------------------------------------------
             # [Step 2] 각 연관 종목의 점수 확인 및 필터링
@@ -110,9 +104,6 @@ class ValueChainStrategy:
                 else:
                     # print(f" ->  [Fail] 기준({TARGET_THRESHOLD}점) 미달")
                     pass
-
-            if pass_count == 0:
-                print(f"    ㄴ  동반 상승 추천 실패: 연관 종목들의 점수가 모두 기준({TARGET_THRESHOLD}점) 미만입니다.")
 
         if not final_recommendations:
             return pd.DataFrame()
