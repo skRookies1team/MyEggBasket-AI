@@ -35,7 +35,7 @@ class DailyTrendLoader:
                     },
                     "aggs": {
                         "avg_sentiment": {
-                            "avg": {"field": "sentiment_score"}  # ✅ 필드명 확인
+                            "avg": {"field": "sentiment_score"}  #  필드명 확인
                         }
                     }
                 }
@@ -67,7 +67,7 @@ class DailyTrendLoader:
                 })
 
             if not data:
-                print(f"⚠️ [{stock_code}] 해당 기간 데이터가 없습니다.")
+                print(f" [{stock_code}] 해당 기간 데이터가 없습니다.")
                 return pd.DataFrame()
 
             # DataFrame 변환
@@ -85,7 +85,7 @@ class DailyTrendLoader:
             return df
 
         except Exception as e:
-            print(f"❌ 데이터 로드 중 오류 발생: {e}")
+            print(f" 데이터 로드 중 오류 발생: {e}")
             return pd.DataFrame()
 
 # -----------------------------------------------------------
@@ -95,11 +95,11 @@ if __name__ == "__main__":
     loader = DailyTrendLoader()
     
     # 삼성전자(005930) 테스트
-    print("\n🔍 삼성전자(005930) 데이터 조회 시도...")
+    print("\n 삼성전자(005930) 데이터 조회 시도...")
     df = loader.get_daily_trend("000660")
     
     if not df.empty:
-        print(f"\n📊 [005930] 시계열 트렌드 분석 결과 (최근 10일):")
+        print(f"\n [005930] 시계열 트렌드 분석 결과 (최근 10일):")
         print(df.tail(10))
     else:
         print("결과가 비어있습니다.")

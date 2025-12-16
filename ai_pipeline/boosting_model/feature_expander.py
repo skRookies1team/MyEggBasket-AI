@@ -41,9 +41,10 @@ class FeatureExpander:
             try:
                 # 파일명에서 종목코드 추출 (예: 000270_1Year.csv -> 000270)
                 basename = os.path.basename(fpath)
-                code_match = re.search(r'(\d{6})', basename)
-                if not code_match: continue
-                stock_code = code_match.group(1)
+                code_match = re.search(r'(\d+)', basename)
+                stock_code = None
+                if code_match:
+                    stock_code = code_match.group(1).zfill(6) # 예: 270 -> 000270
 
                 # CSV 로드
                 df = pd.read_csv(fpath)
@@ -52,6 +53,17 @@ class FeatureExpander:
                 # 컬럼 매핑 (Close -> close)
                 rename_map = {'close': 'close', 'volume': 'volume', 'stck_prpr': 'close', 'acml_vol': 'volume'}
                 df = df.rename(columns=rename_map)
+
+                # [수정 2] 파일명에서 코드를 못 찾았을 경우 CSV 내부 컬럼 확인
+                if stock_code is None:
+                    if 'stock_code' in df.columns:
+                        # 첫 번째 행의 값을 가져와서 6자리 문자열로 변환
+                        stock_code = str(df['stock_code'].iloc[0]).split('.')[0].strip().zfill(6)
+                    elif 'code' in df.columns:
+                        stock_code = str(df['code'].iloc[0]).split('.')[0].strip().zfill(6)
+                    else:
+                        # 코드 식별 불가 시 스킵
+                        continue
 
                 # Timestamp 생성 (YYYYMMDD + HHMMSS)
                 if 'date' in df.columns and 'time' in df.columns:
@@ -124,7 +136,7 @@ class FeatureExpander:
                 results.append(df[cols_to_keep])
 
             except Exception as e:
-                # print(f" [Error] {os.path.basename(fpath)} 처리 중 오류: {e}")
+                print(f" [Error] {os.path.basename(fpath)} 처리 중 오류: {e}")
                 continue
 
         # 전체 데이터를 하나의 DataFrame으로 병합 (메모리에 상주)
