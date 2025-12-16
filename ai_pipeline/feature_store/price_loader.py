@@ -1,135 +1,128 @@
 import pandas as pd
+import numpy as np
 import ta
 import pymongo
 from ai_pipeline.config import settings
 
-
 class PriceFeatureLoader:
     def __init__(self, mongo_uri=settings.MONGO_URI, db_name=settings.MONGO_DB_NAME):
-        try:
-            self.client = pymongo.MongoClient(mongo_uri)
-            self.db = self.client[db_name]
-
-            # 컬렉션 이름 설정
-            col_name = getattr(settings, "MONGO_COLLECTION_NAME", "stock_price_1min")
-            self.collection = self.db[col_name]
-
-            # [핵심] DB 검색 키 설정 (Java 엔티티 기준: stckShrnIscd)
-            self.code_field = getattr(settings, "MONGO_STOCK_CODE_FIELD", "stckShrnIscd")
-
-            print(f" [PriceLoader] DB: {db_name}.{col_name} (Key: {self.code_field})")
-        except Exception as e:
-            print(f" [PriceLoader Error] 연결 실패: {e}")
-            self.collection = None
+        self.client = pymongo.MongoClient(mongo_uri)
+        self.db = self.client[db_name]
+        collection_name = getattr(settings, "MONGO_COLLECTION_NAME", "realtime_price")
+        self.collection = self.db[collection_name]
+        print(f" [PriceLoader] DB: {db_name} / Collection: {collection_name} 연결")
 
     def get_latest_technical_features(self, stock_code, lookback=200):
-        if self.collection is None: return None
+        """
+        최신 기술적 지표 및 변동성 피처를 계산합니다. (학습 데이터와 동일한 로직 적용)
+        """
+        # 1. 몽고DB 데이터 조회
+        cursor = self.collection.find(
+            {"stckShrnIscd": stock_code},
+            {"_id": 0}
+        ).sort("timestamp", -1).limit(lookback)
 
-        # 1. DB 조회 (stckShrnIscd 기준)
-        query = {self.code_field: str(stock_code)}
-
-        # timestamp 내림차순 정렬 (최신순) -> lookback 개수만큼 가져오기
-        cursor = self.collection.find(query, {"_id": 0}).sort("timestamp", -1).limit(lookback)
         df = pd.DataFrame(list(cursor))
 
         if df.empty:
-            # print(f" [Info] 데이터 없음: {stock_code}")
+            print(f" [PriceLoader] {stock_code} 데이터 없음")
             return None
 
-        # 2. 전처리: 타임스탬프 변환 및 정렬
-        # DB의 timestamp가 String일 경우 datetime으로 변환
-        if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            # 과거 -> 현재 순으로 재정렬 (지표 계산을 위해 필수)
-            df = df.sort_values("timestamp").reset_index(drop=True)
-        else:
-            # 타임스탬프가 없으면 역순으로라도 뒤집음
-            df = df.iloc[::-1].reset_index(drop=True)
-
-        # 3. 컬럼 매핑 (DB 필드명(camelCase) -> 내부 변수명(snake_case))
-        # 제공해주신 Java 필드명 기준
+        # 2. 컬럼 매핑 & 전처리
         rename_map = {
-            'stckPrpr': 'close',  # 현재가
-            'acmlVol': 'volume',  # 누적 거래량
-            'prdyCtrt': 'prdy_ctrt',  # 전일 대비율
-            'acmlTrPbmn': 'acml_tr_pbmn'  # 누적 거래대금
+            'stckPrpr': 'close',
+            'acmlVol': 'volume',
+            'acmlTrPbmn': 'acml_tr_pbmn', # 거래대금 (필요 시)
+            'prdyCtrt': 'prdy_ctrt'       # 전일대비율
         }
         df = df.rename(columns=rename_map)
 
-        # 4. 필수 컬럼 결측치 처리 (0.0으로 채움)
-        required_cols = ['close', 'volume', 'prdy_ctrt']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = 0.0
+        for col in ['close', 'volume', 'prdy_ctrt', 'acml_tr_pbmn']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
             else:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+                df[col] = 0.0
 
-        # 거래대금(acml_tr_pbmn)이 없으면 계산해서라도 채워넣음
-        if 'acml_tr_pbmn' not in df.columns:
-            df['acml_tr_pbmn'] = df['close'] * df['volume']
+        if 'timestamp' in df.columns:
+            df = df.sort_values("timestamp").reset_index(drop=True)
         else:
-            df['acml_tr_pbmn'] = pd.to_numeric(df['acml_tr_pbmn'], errors='coerce').fillna(0.0)
+            df = df.iloc[::-1].reset_index(drop=True)
 
-        # 5. 기술적 지표 계산 (TA-Lib / Pandas)
+        # ---------------------------------------------------------
+        # 3. 피처 엔지니어링 (RealtimeFeatureLoader 로직 이식)
+        # ---------------------------------------------------------
         try:
-            # RSI (14)
-            df['hist_RSI_14'] = ta.momentum.rsi(df['close'], window=14).fillna(0)
+            # (1) [기존] TA 라이브러리 지표 (9개)
+            df['RSI_14'] = ta.momentum.rsi(df['close'], window=14)
 
-            # 이동평균(MA) 및 이격도
             for w in [5, 20, 60]:
-                ma = ta.trend.sma_indicator(df['close'], window=w).fillna(df['close'])
-                # 이격도 계산 방식 통일
-                df[f'price_vs_ma{w}'] = (df['close'] - ma) / (ma + 1e-9)
-                df[f'hist_Disparity_{w}'] = df['close'] / (ma + 1e-9)
+                ma = ta.trend.sma_indicator(df['close'], window=w)
+                df[f'Disparity_{w}'] = df['close'] / (ma + 1e-9)
 
-            # 볼린저 밴드 (PctB)
             bb = ta.volatility.BollingerBands(df['close'], window=20, window_dev=2)
-            df['hist_BB_PctB'] = bb.bollinger_pband().fillna(0.5)
+            df['BB_PctB'] = bb.bollinger_pband()
 
-            # MACD
             macd = ta.trend.MACD(df['close'])
-            df['hist_MACD_Diff'] = macd.macd_diff().fillna(0)
+            df['MACD_Diff'] = macd.macd_diff()
 
-            # 거래량 이동평균 비율
-            vol_ma20 = ta.trend.sma_indicator(df['volume'], window=20).fillna(df['volume'])
-            df['hist_Vol_Ratio'] = df['volume'] / (vol_ma20 + 1e-9)
+            vol_ma20 = ta.trend.sma_indicator(df['volume'], window=20)
+            df['Vol_Ratio'] = df['volume'] / (vol_ma20 + 1e-9)
 
-            # 변동성 및 변화율
-            df['price_change_1'] = df['close'].pct_change(1).fillna(0)
-            df['price_change_5'] = df['close'].pct_change(5).fillna(0)
-            df['price_change_10'] = df['close'].pct_change(10).fillna(0)
-            df['tr_amount_change'] = df['acml_tr_pbmn'].pct_change(1).fillna(0)
+            # (2) [추가] RealtimeFeatureLoader 자체 계산 지표 (약 10개)
+            # - 가격 변화율
+            df['price_change_1'] = df['close'].pct_change(1)
+            df['price_change_5'] = df['close'].pct_change(5)
+            df['price_change_10'] = df['close'].pct_change(10)
 
-            df['volatility_5'] = df['price_change_1'].rolling(window=5).std().fillna(0)
-            df['volatility_10'] = df['price_change_1'].rolling(window=10).std().fillna(0)
+            # - 이동평균 대비율 (Disparity와 유사하지만 RealtimeLoader 이름에 맞춤)
+            for w in [5, 20, 60]:
+                ma = df['close'].rolling(window=w).mean()
+                df[f'price_vs_ma{w}'] = (df['close'] - ma) / (ma + 1e-9)
 
-            # 6. 최신(마지막) 데이터 추출
+            # - 거래대금 변화율
+            if 'acml_tr_pbmn' in df.columns:
+                df['tr_amount_change'] = df['acml_tr_pbmn'].pct_change(1)
+            else:
+                df['tr_amount_change'] = 0.0
+
+            # - 변동성 & 모멘텀
+            df['volatility_5'] = df['price_change_1'].rolling(window=5).std()
+            df['volatility_10'] = df['price_change_1'].rolling(window=10).std()
+
+            # (참고: momentum은 price_change와 유사하여 생략되기도 했으나 필요하면 추가)
+            # df['momentum_5'] = df['close'] - df['close'].shift(5)
+
+            # 4. 최신 행 추출 및 반환
             latest = df.iloc[-1].to_dict()
 
-            # 7. 최종 반환 딕셔너리 (모델 입력용)
+            # RealtimeFeatureLoader의 컬럼명과 최대한 매칭
             features = {
-                'close': latest.get('close', 0),  # 현재가 (결과 확인용)
+                'close': latest['close'],
+                'volume': latest['volume'],
+                # FeatureExpander 출신 (TA)
+                'hist_RSI_14': latest.get('RSI_14', 0),
+                'hist_Disparity_5': latest.get('Disparity_5', 0),
+                'hist_Disparity_20': latest.get('Disparity_20', 0),
+                'hist_Disparity_60': latest.get('Disparity_60', 0),
+                'hist_BB_PctB': latest.get('BB_PctB', 0),
+                'hist_MACD_Diff': latest.get('MACD_Diff', 0),
+                'hist_Vol_Ratio': latest.get('Vol_Ratio', 0),
+
+                # RealtimeFeatureLoader 출신
                 'prdy_ctrt': latest.get('prdy_ctrt', 0),
                 'price_change_1': latest.get('price_change_1', 0),
                 'price_change_5': latest.get('price_change_5', 0),
                 'price_change_10': latest.get('price_change_10', 0),
                 'price_vs_ma5': latest.get('price_vs_ma5', 0),
                 'price_vs_ma20': latest.get('price_vs_ma20', 0),
-                'price_vs_ma60': latest.get('price_vs_ma60', 0),
+                'price_vs_ma60': latest.get('price_vs_ma60', 0), # 60일선 추가
                 'tr_amount_change': latest.get('tr_amount_change', 0),
                 'volatility_5': latest.get('volatility_5', 0),
-                'volatility_10': latest.get('volatility_10', 0),
-                'hist_RSI_14': latest.get('hist_RSI_14', 0),
-                'hist_Disparity_5': latest.get('hist_Disparity_5', 0),
-                'hist_Disparity_20': latest.get('hist_Disparity_20', 0),
-                'hist_Disparity_60': latest.get('hist_Disparity_60', 0),
-                'hist_BB_PctB': latest.get('hist_BB_PctB', 0),
-                'hist_MACD_Diff': latest.get('hist_MACD_Diff', 0),
-                'hist_Vol_Ratio': latest.get('hist_Vol_Ratio', 0),
-                'timestamp': latest.get('timestamp')
+                'volatility_10': latest.get('volatility_10', 0)
             }
-            return features
+
+            return {k: (0.0 if pd.isna(v) else v) for k, v in features.items()}
 
         except Exception as e:
-            print(f" [PriceLoader] 지표 계산 에러: {e}")
+            print(f" [PriceLoader] 지표 계산 중 에러: {e}")
             return None

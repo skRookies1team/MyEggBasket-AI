@@ -103,7 +103,7 @@ def run_date_range_collection(start_date_str, end_date_str):
                         })
 
             # ---------------------------------------------------------
-            # 💾 [Core 3] 저장
+            #  [Core 3] 저장
             # ---------------------------------------------------------
             save_news_to_es(
                 url=real_url,

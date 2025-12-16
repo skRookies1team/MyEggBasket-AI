@@ -49,5 +49,5 @@ class TechnicalAnalyzer:
             return round(final_score, 2)
 
         except Exception as e:
-            print(f"⚠️ {code} 분석 실패: {e}")
+            print(f" {code} 분석 실패: {e}")
             return 50.0 # 에러나면 기본 50점

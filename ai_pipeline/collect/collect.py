@@ -26,7 +26,7 @@ URL_BASE = "https://openapi.koreainvestment.com:9443"
 
 # 키 값 존재 여부 확인 (실수 방지용)
 if not APP_KEY or not APP_SECRET:
-    print("❌ Error: .env 파일에서 APP_KEY 또는 APP_SECRET을 찾을 수 없습니다.")
+    print(" Error: .env 파일에서 APP_KEY 또는 APP_SECRET을 찾을 수 없습니다.")
     print("    1. .env 파일이 같은 폴더에 있는지 확인하세요.")
     print("    2. .env 파일 안에 변수명이 정확한지 확인하세요.")
     exit()
@@ -77,22 +77,22 @@ def get_minute_chart_safe(token, code, date_str, time_str, max_retries=10):
                     return data['output2']
                 else:
                     # API 호출 제한이나 일시적 오류
-                    print(f"\n   ⚠️ API Msg: {data['msg1']} (Retry {attempt+1}/{max_retries})...")
+                    print(f"\n    API Msg: {data['msg1']} (Retry {attempt+1}/{max_retries})...")
                     time.sleep(1.5)
             else:
-                print(f"\n   ⚠️ HTTP Status: {res.status_code} (Retry {attempt+1}/{max_retries})...")
+                print(f"\n    HTTP Status: {res.status_code} (Retry {attempt+1}/{max_retries})...")
                 time.sleep(1.5)
                 
         # [중요] 방금 발생한 에러들을 여기서 다 잡습니다
         except (ChunkedEncodingError, ConnectionError, ReadTimeout, IncompleteRead, ProtocolError) as e:
-            print(f"\n   🚨 네트워크 끊김 발생! ({e}) -> 3초 후 재시도 ({attempt+1}/{max_retries})")
+            print(f"\n    네트워크 끊김 발생! ({e}) -> 3초 후 재시도 ({attempt+1}/{max_retries})")
             time.sleep(3) # 3초 쉬고 다시 시도
             
         except Exception as e:
-            print(f"\n   🚨 알 수 없는 에러: {e} -> 재시도")
+            print(f"\n    알 수 없는 에러: {e} -> 재시도")
             time.sleep(1)
 
-    print(f"\n❌ {max_retries}회 재시도 실패. 건너뜁니다.")
+    print(f"\n {max_retries}회 재시도 실패. 건너뜁니다.")
     return None
 
 # ==========================================
@@ -107,7 +107,7 @@ if __name__ == "__main__":
 
     if token:
         total_count = len(target_codes)
-        print(f"✅ 총 {total_count}개 종목 수집 시작 (불사신 모드 🛡️ + 보안 강화 🔒)\n")
+        print(f" 총 {total_count}개 종목 수집 시작 (불사신 모드  + 보안 강화 )\n")
         
         for idx, code in enumerate(target_codes):
             # 이미 파일이 있으면 건너뛰기 기능
@@ -156,16 +156,16 @@ if __name__ == "__main__":
                     df.drop_duplicates(subset=['Date', 'Time'], inplace=True)
                     
                     df.to_csv(filename, index=False)
-                    print(f"   💾 저장 완료: {filename} (총 {len(df)}건)")
+                    print(f"    저장 완료: {filename} (총 {len(df)}건)")
                 else:
-                    print(f"   ⚠️ 데이터 없음: {code}")
+                    print(f"    데이터 없음: {code}")
 
             except Exception as e:
-                print(f"\n   ❌ 치명적 오류 발생 ({code}): {e}")
+                print(f"\n    치명적 오류 발생 ({code}): {e}")
             
             print("-" * 40)
             time.sleep(0.5)
 
-        print("\n🎉 모든 종목 수집이 완료되었습니다!")
+        print("\n 모든 종목 수집이 완료되었습니다!")
     else:
         print("토큰 발급 실패: .env 키 값을 확인하세요.")

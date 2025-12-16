@@ -10,7 +10,7 @@ def generate_feature_columns_file():
     # 1. 학습 데이터 읽기
     csv_path = "train_dataset.csv"
     if not os.path.exists(csv_path):
-        print("❌ train_dataset.csv가 없습니다. 먼저 생성해주세요.")
+        print(" train_dataset.csv가 없습니다. 먼저 생성해주세요.")
         return
 
     df = pd.read_csv(csv_path, nrows=5)
@@ -20,7 +20,7 @@ def generate_feature_columns_file():
     exclude_cols = ['target', 'stock_code', 'date', 'timestamp', 'stck_prpr', 'code', 'Date']
     feature_cols = [c for c in df.columns if c not in exclude_cols]
     
-    print(f"📊 감지된 피처 개수: {len(feature_cols)}개")
+    print(f" 감지된 피처 개수: {len(feature_cols)}개")
     
     # 3. 파이썬 파일로 코드 생성
     config_path = os.path.join("ai_pipeline", "config")
@@ -35,7 +35,7 @@ def generate_feature_columns_file():
             f.write(f"    '{col}',\n")
         f.write("]\n")
         
-    print(f"✅ 설정 파일 생성 완료: {file_path}")
+    print(f" 설정 파일 생성 완료: {file_path}")
     print("   이제 모든 코드에서 이 리스트를 불러와 사용하면 순서가 꼬일 일이 없습니다.")
 
 if __name__ == "__main__":
