@@ -19,7 +19,7 @@ class PriceFeatureLoader:
         # 1. 몽고DB 데이터 조회
         cursor = self.collection.find(
             {"stckShrnIscd": stock_code},
-            {"_id": 0} 
+            {"_id": 0}
         ).sort("timestamp", -1).limit(lookback)
 
         df = pd.DataFrame(list(cursor))
@@ -30,8 +30,8 @@ class PriceFeatureLoader:
 
         # 2. 컬럼 매핑 & 전처리
         rename_map = {
-            'stckPrpr': 'close',   
-            'acmlVol': 'volume', 
+            'stckPrpr': 'close',
+            'acmlVol': 'volume',
             'acmlTrPbmn': 'acml_tr_pbmn', # 거래대금 (필요 시)
             'prdyCtrt': 'prdy_ctrt'       # 전일대비율
         }
@@ -54,7 +54,7 @@ class PriceFeatureLoader:
         try:
             # (1) [기존] TA 라이브러리 지표 (9개)
             df['RSI_14'] = ta.momentum.rsi(df['close'], window=14)
-            
+
             for w in [5, 20, 60]:
                 ma = ta.trend.sma_indicator(df['close'], window=w)
                 df[f'Disparity_{w}'] = df['close'] / (ma + 1e-9)
@@ -88,13 +88,13 @@ class PriceFeatureLoader:
             # - 변동성 & 모멘텀
             df['volatility_5'] = df['price_change_1'].rolling(window=5).std()
             df['volatility_10'] = df['price_change_1'].rolling(window=10).std()
-            
+
             # (참고: momentum은 price_change와 유사하여 생략되기도 했으나 필요하면 추가)
             # df['momentum_5'] = df['close'] - df['close'].shift(5)
 
             # 4. 최신 행 추출 및 반환
             latest = df.iloc[-1].to_dict()
-            
+
             # RealtimeFeatureLoader의 컬럼명과 최대한 매칭
             features = {
                 'close': latest['close'],
@@ -107,7 +107,7 @@ class PriceFeatureLoader:
                 'hist_BB_PctB': latest.get('BB_PctB', 0),
                 'hist_MACD_Diff': latest.get('MACD_Diff', 0),
                 'hist_Vol_Ratio': latest.get('Vol_Ratio', 0),
-                
+
                 # RealtimeFeatureLoader 출신
                 'prdy_ctrt': latest.get('prdy_ctrt', 0),
                 'price_change_1': latest.get('price_change_1', 0),
@@ -120,7 +120,7 @@ class PriceFeatureLoader:
                 'volatility_5': latest.get('volatility_5', 0),
                 'volatility_10': latest.get('volatility_10', 0)
             }
-            
+
             return {k: (0.0 if pd.isna(v) else v) for k, v in features.items()}
 
         except Exception as e:
