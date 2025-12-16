@@ -12,6 +12,7 @@ except ImportError:
     print(" [Error] ValueChainAnalyzer를 찾을 수 없습니다.")
     ValueChainAnalyzer = None
 
+
 class ValueChainStrategy:
     def __init__(self):
         # print(" [Strategy] 밸류체인 전략 분석기 초기화...")
@@ -94,12 +95,13 @@ class ValueChainStrategy:
                         f"이에 따라 밸류체인상 연관된 '{rel_name}'({rel_reason}) 또한 "
                         f"AI 점수 {rel_score}%로 동반 상승이 유력함."
                     )
-                    
+
                     rec_item = {
-                        "Main_Stock": main_name,
-                        "Main_Score": main_score,
+                        "Target_Code": rel_code,
                         "Target_Stock": rel_name,
                         "Target_Score": rel_score,
+                        "Main_Stock": main_name,
+                        "Main_Score": main_score,
                         "Relation": rel_reason,
                         "Rationale": rationale
                     }
