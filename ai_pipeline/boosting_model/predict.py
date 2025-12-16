@@ -87,4 +87,26 @@ def run_prediction_pipeline(csv_path=None):
 if __name__ == "__main__":
     df = run_prediction_pipeline()
     if df is not None:
+        print("\n [AI 예측 결과 Top 10]")
         print(df.sort_values('ai_score', ascending=False).head(10))
+
+        # ---------------------------------------------------------
+        #  [Step 3.5] 밸류체인 분석 (이 파일 단독 실행 시 작동)
+        # ---------------------------------------------------------
+        if ValueChainStrategy:
+            print("\n" + "=" * 60)
+            print(" [Step 3.5] 밸류체인 전략 분석 (Predict 단독 실행)")
+            print("=" * 60)
+            
+            vc_strategy = ValueChainStrategy()
+            recommendation_df = vc_strategy.analyze_predictions(df)
+            
+            if not recommendation_df.empty:
+                print(f"\n >>> 밸류체인 동반 상승 추천 종목 ({len(recommendation_df)}건) <<<")
+                for idx, row in recommendation_df.head(5).iterrows():
+                    print("-" * 70)
+                    print(f"[{idx+1}] 메인: {row['Main_Stock']}({row['Main_Score']}점) -> 타겟: {row['Target_Stock']}({row['Target_Score']}점)")
+                    print(f" 근거: {row['Rationale']}") 
+                    print("-" * 70)
+            else:
+                print(" -> 조건에 맞는 밸류체인 동반 상승 종목이 없습니다.")

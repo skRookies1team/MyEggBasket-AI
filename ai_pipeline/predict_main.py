@@ -74,7 +74,7 @@ def run_pipeline_with_rebalancing():
 
 
     # ---------------------------------------------------------
-    # ✅ [Step 3.5] 밸류체인 전략 분석 (근거 도출 & 동반 매수 추천)
+    #  [Step 3.5] 밸류체인 전략 분석 (근거 도출 & 동반 매수 추천)
     # ---------------------------------------------------------
     print("\n [Step 3.5] 밸류체인 전략 분석 (근거 도출)")
     
@@ -86,7 +86,7 @@ def run_pipeline_with_rebalancing():
         # 상위 5개 출력
         for idx, row in recommendation_df.head(5).iterrows():
             print(f" [{idx+1}] {row['Rationale']}")
-            print(f"      👉 매수 추천: {row['Main_Stock']} & {row['Target_Stock']}")
+            print(f"       매수 추천: {row['Main_Stock']} & {row['Target_Stock']}")
             print("-" * 50)
             
         # 결과 저장

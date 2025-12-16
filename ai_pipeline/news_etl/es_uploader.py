@@ -68,4 +68,4 @@ def save_news_to_es(url, title, text, published_date, related_stocks, analysis_r
     try:
         resp = es.index(index=INDEX_NAME, id=doc_id, document=doc)
     except Exception as e:
-        print(f"❌ ES 저장 실패: {e}")
+        print(f" ES 저장 실패: {e}")

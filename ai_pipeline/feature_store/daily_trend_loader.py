@@ -6,7 +6,7 @@ from ai_pipeline.config.settings import ES_HOST
 class DailyTrendLoader:
     def __init__(self):
         self.es = Elasticsearch(ES_HOST)
-        self.index_name = "stock_features_v1"  # ✅ 인덱스 이름 확인 (v1)
+        self.index_name = "stock_features_v1"  #  인덱스 이름 확인 (v1)
 
     def get_daily_trend(self, stock_code, days=30):
         # 조회 기간 설정
