@@ -5,12 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
-      <change afterPath="$PROJECT_DIR$/test_realtime_predict.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/feature_store/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/feature_store/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/feature_store/feature_store.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/feature_store/price_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/feature_store/price_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/news_source/bulk_collector.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/news_source/bulk_collector.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/final_order_plan.csv" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/final_order_plan.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/graph_edges.csv" beforeDir="false" afterPath="$PROJECT_DIR$/data/graph_edges.csv" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -41,7 +39,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Python.train_from_csv.executor": "Run",
-    "git-widget-placeholder": "feat/97__auto__trading__system",
+    "git-widget-placeholder": "develop",
     "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/ai_pipeline/boosting_model"
   }
 }]]></component>

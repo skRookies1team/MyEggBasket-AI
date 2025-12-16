@@ -14,7 +14,6 @@ from ai_pipeline.config.settings import ES_HOST
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 # 필요한 클래스 import
-# 필요한 클래스 import
 try:
     from ai_pipeline.boosting_model.realtime_feature_loader import RealtimeFeatureLoader
     from ai_pipeline.boosting_model.feature_expander import FeatureExpander
@@ -29,7 +28,7 @@ except ImportError:
 
 
 # =========================================================
-#  GCN 로더 클래스 (수정됨: .npy 파일 우선 로드 방식)
+# ✅ GCN 로더 클래스 (수정됨: .npy 파일 우선 로드 방식)
 # =========================================================
 class GCNFeatureExtractor:
     def __init__(self, model_path=None):
@@ -139,9 +138,8 @@ class GCNFeatureExtractor:
         merged_df[gcn_cols] = merged_df[gcn_cols].fillna(0)
         return merged_df
 
-
 # =========================================================
-# ✅ 메인 FeatureEngineer 클래스 (캐싱 기능 추가)
+# ✅ 메인 FeatureEngineer 클래스 (캐싱 기능 포함)
 # =========================================================
 class FeatureEngineer:
     def __init__(self, data_dir=None, csv_path=None):
@@ -181,7 +179,6 @@ class FeatureEngineer:
         except:
             pass
 
-    # ... (기존 _get_date_from_filename, merge_sentiment_scores, _process_single_file 메소드 동일 유지) ...
     def _get_date_from_filename(self, filepath):
         basename = os.path.basename(filepath)
         match = re.search(r'(\d{8})', basename)
@@ -287,7 +284,8 @@ class FeatureEngineer:
             if len(load_result) == 3:
                 X, y, stock_codes = load_result
             else:
-                X, y = load_result; stock_codes = []
+                X, y = load_result;
+                stock_codes = []
         except:
             return None, None, None
 
@@ -316,12 +314,41 @@ class FeatureEngineer:
         else:
             cache_file = "cached_final_features.csv"
 
-        # 1. 캐시 확인 및 로드 (기존과 동일)
+        # -----------------------------------------------------
+        # [수정됨] 1. 캐시 확인 및 로드 (구현 완료)
+        # -----------------------------------------------------
         if use_cache and not force_update and os.path.exists(cache_file):
-            # ... (캐시 로드 로직 생략, 기존 동일) ...
-            pass
+            print(f" [Cache] 기존 통합 데이터 발견! 로드 중... ({cache_file})")
+            try:
+                # 데이터 로드
+                df_cache = pd.read_csv(cache_file)
 
-            # 2. 캐시가 없으면 생성
+                # 필수 컬럼 분리 (X, y, codes)
+                if 'target' not in df_cache.columns:
+                    print(" [Cache Error] 'target' 컬럼이 없습니다. 재생성합니다.")
+                else:
+                    # y 분리
+                    y = df_cache['target']
+
+                    # 종목코드(codes) 분리 (stck_shrn_iscd로 저장됨)
+                    if 'stck_shrn_iscd' in df_cache.columns:
+                        codes = df_cache['stck_shrn_iscd']
+                        # 학습용 X에서는 타겟과 코드 모두 제외
+                        X = df_cache.drop(columns=['target', 'stck_shrn_iscd'])
+                    else:
+                        # 코드가 없으면 0으로 채움 (비추천)
+                        codes = pd.Series([0] * len(df_cache))
+                        X = df_cache.drop(columns=['target'])
+
+                    print(f" [Cache] 로드 완료! (샘플 수: {len(X):,})")
+                    return X, y, codes
+
+            except Exception as e:
+                print(f" [Cache Error] 로드 중 오류 발생: {e}. 데이터를 재생성합니다.")
+
+        # -----------------------------------------------------
+        # 2. 캐시가 없으면 생성 (기존 로직)
+        # -----------------------------------------------------
         csv_files = []
         if self.csv_path and os.path.exists(self.csv_path):
             csv_files = [self.csv_path]
@@ -366,7 +393,9 @@ class FeatureEngineer:
         final_X = final_X.drop(columns=[c for c in drop_cols if c in final_X.columns], errors='ignore')
         final_X = final_X.select_dtypes(include=[np.number])
 
-        # [수정] 캐시 저장을 위해 임시 DataFrame 생성
+        # -----------------------------------------------------
+        # 3. 캐시 저장
+        # -----------------------------------------------------
         print(f" [Cache] 다음 실행 속도 향상을 위해 데이터를 저장합니다... ({cache_file})")
         save_df = final_X.copy()
         save_df['target'] = final_y
