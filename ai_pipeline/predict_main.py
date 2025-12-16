@@ -14,7 +14,11 @@ from ai_pipeline.boosting_model.predict import run_prediction_pipeline
 from ai_pipeline.portfolio.rebalancer import PortfolioRebalancer
 from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
-def run_pipeline_with_strategy():
+
+# [New] GCN Inference 모듈 (필요시 주석 해제하여 사용)
+# from ai_pipeline.gcn_model.inference_gcn import GCNInference
+
+def run_pipeline_with_rebalancing():
     print("\n" + "=" * 60)
     print(" [AI Financial Pipeline] 밸류체인 전략 기반 리밸런싱")
     print("=" * 60)
@@ -68,6 +72,31 @@ def run_pipeline_with_strategy():
     else:
         print(" -> 밸류체인 조건에 부합하는 강력한 신규 추천 종목이 없습니다.")
 
+
+    # ---------------------------------------------------------
+    # ✅ [Step 3.5] 밸류체인 전략 분석 (근거 도출 & 동반 매수 추천)
+    # ---------------------------------------------------------
+    print("\n [Step 3.5] 밸류체인 전략 분석 (근거 도출)")
+    
+    vc_strategy = ValueChainStrategy()
+    recommendation_df = vc_strategy.analyze_predictions(prediction_df)
+    
+    if not recommendation_df.empty:
+        print(f"\n >>> 밸류체인 동반 상승 추천 종목 ({len(recommendation_df)}건) <<<")
+        # 상위 5개 출력
+        for idx, row in recommendation_df.head(5).iterrows():
+            print(f" [{idx+1}] {row['Rationale']}")
+            print(f"      👉 매수 추천: {row['Main_Stock']} & {row['Target_Stock']}")
+            print("-" * 50)
+            
+        # 결과 저장
+        rec_save_path = os.path.join(os.path.dirname(__file__), "value_chain_recommendations.csv")
+        recommendation_df.to_csv(rec_save_path, index=False, encoding='utf-8-sig')
+        print(f" 밸류체인 추천 결과 저장 완료: {rec_save_path}")
+    else:
+        print(" -> 조건에 맞는 밸류체인 동반 상승 종목이 없습니다.")
+
+
     # ---------------------------------------------------------
     # [Step 4] 최종 포트폴리오 유니버스 구성
     # ---------------------------------------------------------
@@ -114,4 +143,4 @@ def run_pipeline_with_strategy():
 
 
 if __name__ == "__main__":
-    run_pipeline_with_strategy()
+    run_pipeline_with_rebalancing()

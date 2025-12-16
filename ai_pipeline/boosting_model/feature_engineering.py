@@ -14,6 +14,7 @@ from ai_pipeline.config.settings import ES_HOST
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 # 필요한 클래스 import
+# 필요한 클래스 import
 try:
     from ai_pipeline.boosting_model.realtime_feature_loader import RealtimeFeatureLoader
     from ai_pipeline.boosting_model.feature_expander import FeatureExpander
@@ -113,6 +114,7 @@ class GCNFeatureExtractor:
         return mapping
 
     def add_gcn_features(self, df, code_col='code'):
+        # [수정] 어떤 컬럼이 오든 처리할 수 있도록 유연하게 설정
         target_col = code_col
         if 'stck_shrn_iscd' in df.columns:
             target_col = 'stck_shrn_iscd'
