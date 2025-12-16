@@ -56,7 +56,7 @@ def extract_investment_info(text):
 
 def run_merge_and_save_test(limit_count=5):
     print("\n" + "="*60)
-    print(f"🧪 [테스트] 리포트 {limit_count}개만 분석하여 병합 시작")
+    print(f" [테스트] 리포트 {limit_count}개만 분석하여 병합 시작")
     print("="*60)
     
     if not os.path.exists(REPORT_DIR):
@@ -67,12 +67,12 @@ def run_merge_and_save_test(limit_count=5):
     all_files = [f for f in os.listdir(REPORT_DIR) if f.endswith('.pdf')]
     
     if not all_files:
-        print("❌ 저장된 PDF 파일이 없습니다.")
+        print(" 저장된 PDF 파일이 없습니다.")
         return
 
     # [테스트용] 앞에서부터 지정한 개수만큼만 자름
     target_files = all_files[:limit_count]
-    print(f"📄 전체 {len(all_files)}개 중 상위 {len(target_files)}개만 처리합니다.\n")
+    print(f" 전체 {len(all_files)}개 중 상위 {len(target_files)}개만 처리합니다.\n")
 
     report_data_list = []
 
@@ -120,14 +120,14 @@ def run_merge_and_save_test(limit_count=5):
             "full_content": clean_content       
         })
 
-    print(f"\n\n✅ 리포트 분석 완료: {len(report_data_list)}건")
+    print(f"\n\n 리포트 분석 완료: {len(report_data_list)}건")
     
     # 2. DataFrame 변환
     df_reports = pd.DataFrame(report_data_list)
 
     # 3. 기존 데이터셋 로드 및 병합
     if os.path.exists(BASE_CSV_PATH):
-        print(f"📂 기존 데이터셋 로드 중: {BASE_CSV_PATH}")
+        print(f" 기존 데이터셋 로드 중: {BASE_CSV_PATH}")
         try:
             df_base = pd.read_csv(BASE_CSV_PATH)
             
@@ -135,7 +135,7 @@ def run_merge_and_save_test(limit_count=5):
             if 'stock_code' in df_base.columns:
                 df_base['stock_code'] = df_base['stock_code'].apply(lambda x: str(x).zfill(6))
             
-            print("🔄 데이터 병합 중...")
+            print(" 데이터 병합 중...")
             # 전체 데이터 살리기 (outer join)
             df_merged = pd.merge(df_base, df_reports, on='stock_code', how='outer')
             
@@ -145,15 +145,15 @@ def run_merge_and_save_test(limit_count=5):
                 df_merged.drop(columns=['stock_name_x', 'stock_name_y'], inplace=True)
 
         except Exception as e:
-            print(f"⚠️ 병합 실패 (리포트만 저장): {e}")
+            print(f" 병합 실패 (리포트만 저장): {e}")
             df_merged = df_reports
     else:
-        print("⚠️ 기존 데이터셋이 없어 리포트 데이터만 저장합니다.")
+        print(" 기존 데이터셋이 없어 리포트 데이터만 저장합니다.")
         df_merged = df_reports
 
     # 4. 저장
     df_merged.to_csv(OUTPUT_CSV, index=False, encoding='utf-8-sig')
-    print(f"\n🎉 저장 완료! 파일 경로: {OUTPUT_CSV}")
+    print(f"\n 저장 완료! 파일 경로: {OUTPUT_CSV}")
 
 if __name__ == "__main__":
     # 테스트로 5개만 실행 (원하면 숫자 변경)

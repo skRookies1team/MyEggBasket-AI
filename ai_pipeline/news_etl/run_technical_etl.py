@@ -14,14 +14,14 @@ from ai_pipeline.analysis.technical_analysis import TechnicalAnalyzer
 from ai_pipeline.mapping.stock_mapping import StockMapper
 
 def run_technical_etl():
-    print("📈 [AI Score] 전 종목 기술적 점수 계산 시작...")
+    print(" [AI Score] 전 종목 기술적 점수 계산 시작...")
     
     es = Elasticsearch(ES_HOST)
     analyzer = TechnicalAnalyzer()
     mapper = StockMapper() # 종목 리스트 로드
     
     codes = list(mapper.stock_dict.values())
-    print(f"📊 대상 종목: {len(codes)}개")
+    print(f" 대상 종목: {len(codes)}개")
 
     actions = []
     timestamp = datetime.now().isoformat()
@@ -51,7 +51,7 @@ def run_technical_etl():
     if actions:
         helpers.bulk(es, actions)
     
-    print(f"✅ AI 스코어 계산 및 저장 완료! (인덱스: stock_technicals)")
+    print(f" AI 스코어 계산 및 저장 완료! (인덱스: stock_technicals)")
 
 if __name__ == "__main__":
     run_technical_etl()

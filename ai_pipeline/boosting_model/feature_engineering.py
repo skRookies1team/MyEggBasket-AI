@@ -30,7 +30,7 @@ except ImportError:
 
 
 # =========================================================
-# ✅ GCN 로더 클래스 (수정됨: .npy 파일 우선 로드 방식)
+#  GCN 로더 클래스 (수정됨: .npy 파일 우선 로드 방식)
 # =========================================================
 class GCNFeatureExtractor:
     def __init__(self, model_path=None):
@@ -168,7 +168,7 @@ class GCNFeatureExtractor:
 
 
 # =========================================================
-# ✅ 메인 FeatureEngineer 클래스
+#  메인 FeatureEngineer 클래스
 # =========================================================
 class FeatureEngineer:
     def __init__(self, data_dir=None, csv_path=None):

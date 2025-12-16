@@ -65,7 +65,7 @@ class OnlineFeatureStore:
 if __name__ == "__main__":
     store = OnlineFeatureStore()
     
-    target_code = "000270" # 기아
+    target_code = "006400" 
     print(f"\n [Test] {target_code} 실시간 피처 조회:")
     
     try:
@@ -74,16 +74,16 @@ if __name__ == "__main__":
         
         if df is not None:
             # 1. 피처 개수 확인
-            print(f"\n✅ 총 피처 개수: {df.shape[1]}개")
+            print(f"\n 총 피처 개수: {df.shape[1]}개")
             
             # 2. 모든 피처 이름 확인 (리스트 형태로 출력)
-            print(f"\n✅ 피처 목록:\n{df.columns.tolist()}")
+            print(f"\n 피처 목록:\n{df.columns.tolist()}")
             
             # 3. 데이터 전체 보기 (보기 편하게 전치(T)해서 출력)
-            print("\n✅ 데이터 값 확인 (전치):")
+            print("\n 데이터 값 확인 (전치):")
             print(df.T)
         else:
-            print("❌ 데이터 추출 실패 (None 반환)")
+            print(" 데이터 추출 실패 (None 반환)")
             
     except Exception as e:
-        print(f"❌ 실행 중 에러 발생: {e}")
+        print(f" 실행 중 에러 발생: {e}")

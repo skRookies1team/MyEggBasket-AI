@@ -128,14 +128,14 @@ class RealtimeFeatureLoader:
             if 'prdy_ctrt' not in resampled.columns:
                 resampled['prdy_ctrt'] = 0.0
 
-            # ✅ [핵심 수정] Target 생성 로직 완화
+            #  [핵심 수정] Target 생성 로직 완화
             LOOK_AHEAD = 5  # 5분 뒤 가격
             THRESHOLD = 0.001  # 0.1%로 낮춤 (기존 0.3%)
 
             future_price = resampled['stck_prpr'].shift(-LOOK_AHEAD)
             ret = (future_price - resampled['stck_prpr']) / (resampled['stck_prpr'] + 1e-8)
 
-            # ✅ [추가] 타겟 생성 전 데이터 검증
+            #  [추가] 타겟 생성 전 데이터 검증
             valid_ret = ret.dropna()
             if len(valid_ret) > 0:
                 positive_count = (valid_ret > THRESHOLD).sum()
@@ -150,7 +150,7 @@ class RealtimeFeatureLoader:
 
         final_df = pd.concat(result_dfs, ignore_index=True)
 
-        # ✅ [최종 검증] Target 분포 출력
+        #  [최종 검증] Target 분포 출력
         total_targets = final_df['target'].dropna()
         if len(total_targets) > 0:
             up_count = (total_targets == 1).sum()

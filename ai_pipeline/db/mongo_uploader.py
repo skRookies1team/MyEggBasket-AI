@@ -16,9 +16,9 @@ class MongoUploader:
             self.client = pymongo.MongoClient(MONGO_URI)
             self.db = self.client[MONGO_DB_NAME]
             self.collection = self.db[MONGO_COLLECTION_NAME]
-            print(f"🔌 MongoDB 연결 성공: {MONGO_DB_NAME}.{MONGO_COLLECTION_NAME}")
+            print(f" MongoDB 연결 성공: {MONGO_DB_NAME}.{MONGO_COLLECTION_NAME}")
         except Exception as e:
-            print(f"❌ MongoDB 연결 실패: {e}")
+            print(f" MongoDB 연결 실패: {e}")
             self.collection = None
 
     def save_report(self, data):
@@ -32,17 +32,17 @@ class MongoUploader:
         try:
             # 중복 체크 (파일명이 같은게 이미 있으면 저장 안 함)
             if self.collection.find_one({"filename": data['filename']}):
-                print(f"   ⏭️ [DB Skip] 이미 저장된 리포트: {data['filename']}")
+                print(f"    [DB Skip] 이미 저장된 리포트: {data['filename']}")
                 return
 
             # 저장 날짜 추가
             data['uploaded_at'] = datetime.now()
             
             self.collection.insert_one(data)
-            print(f"   💾 [DB 저장] {data['filename']} 저장 완료")
+            print(f"    [DB 저장] {data['filename']} 저장 완료")
             
         except Exception as e:
-            print(f"   ❌ DB 저장 중 에러: {e}")
+            print(f"    DB 저장 중 에러: {e}")
 
     def close(self):
         self.client.close()
