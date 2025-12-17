@@ -5,10 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/portfolio/rebalancer.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/portfolio/rebalancer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/graph_edges.csv" beforeDir="false" afterPath="$PROJECT_DIR$/data/graph_edges.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_realtime_predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/test_realtime_predict.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/gcn_model/gcn_node_list.csv" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
