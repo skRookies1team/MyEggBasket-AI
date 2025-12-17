@@ -6,6 +6,7 @@
     "price_change_10",
     "price_vs_ma5",
     "price_vs_ma20",
+    "price_vs_ma60",
     "tr_amount_change",
     "volatility_5",
     "volatility_10",

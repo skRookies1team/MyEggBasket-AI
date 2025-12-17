@@ -86,9 +86,9 @@ def test_realtime_prediction(target_code="005930"):
             opinion = "관망"
 
         print("\n" + "-" * 40)
-        print(f" 🎯 예측 결과: [{target_code}]")
-        print(f" 🏆 AI 점수 : {ai_score}점")
-        print(f" 📢 투자 의견: {opinion}")
+        print(f" 예측 결과: [{target_code}]")
+        print(f" AI 점수 : {ai_score}점")
+        print(f" 투자 의견: {opinion}")
         print("-" * 40)
 
         # 주요 근거 데이터 출력 (참고용)

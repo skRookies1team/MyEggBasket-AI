@@ -179,16 +179,6 @@ class FeatureEngineer:
         except:
             pass
 
-    def _get_date_from_filename(self, filepath):
-        basename = os.path.basename(filepath)
-        match = re.search(r'(\d{8})', basename)
-        if match:
-            try:
-                return datetime.strptime(match.group(1), "%Y%m%d")
-            except:
-                pass
-        return None
-
     def merge_sentiment_scores(self, X, stock_codes, current_file_path):
         if isinstance(stock_codes, pd.Series): stock_codes = stock_codes.tolist()
         unique_codes = list(set([str(c).strip().zfill(6) for c in stock_codes]))

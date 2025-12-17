@@ -27,12 +27,16 @@ def run_pipeline_with_rebalancing():
     # [Step 1] 내 계좌 보유 현황 (API 연동 가정)
     # ---------------------------------------------------------
     my_portfolio = {
-        '047050': 10000000,  # 포스코인터내셔널
-        '006405': 5000000,  # 윤성에프앤씨
-        '066570': 2000000,  # LG전자
-        '005930': 15000000,  # 삼성전자
+        '000660': 5000000,
+        '009830': 2000000,
+        '047050': 15000000,
+        '051900': 8000000,
+        '005930': 12000000,
     }
-    held_codes = list(my_portfolio.keys())
+
+    held_codes = [str(c).strip().zfill(6) for c in my_portfolio.keys()]
+    my_portfolio = {str(k).strip().zfill(6): v for k, v in my_portfolio.items()}
+
     print(f" [Step 1] 현재 보유 종목: {len(held_codes)}개")
 
     # ---------------------------------------------------------
@@ -50,6 +54,16 @@ def run_pipeline_with_rebalancing():
     if prediction_df is None or prediction_df.empty:
         print(" [Stop] 예측 데이터가 없습니다.")
         return
+
+    prediction_df['code'] = prediction_df['code'].astype(str).str.strip().str.zfill(6)
+
+    #보유종목과 관계없는 단순 ai 점수 높은 종목 5개 출력
+    print("\n" + "-" * 50)
+    print(" [전체 종목 AI 예측 Score Top 5]")
+    print("-" * 50)
+    top_simple = prediction_df.sort_values('ai_score', ascending=False).head(5)
+    print(top_simple[['code', 'ai_score', 'opinion']].to_string(index=False))
+    print("-" * 50)
 
     # ---------------------------------------------------------
     # [Step 3] 밸류체인 전략으로 '진짜배기' 신규 종목 발굴 (통합)
@@ -80,8 +94,9 @@ def run_pipeline_with_rebalancing():
 
         # 3. 리밸런싱용 코드 추출 (Target_Code)
         #    상위 5개(또는 전체) 종목만 포트폴리오 편입 후보로 선정
-        top_picks = rec_df.head(5)
-        recommended_codes = top_picks['Target_Code'].unique().tolist()
+        # 신규 매수 후보군 (Target Code) 추출
+        recommended_codes = rec_df['Target_Code'].unique().tolist()
+        recommended_codes = [str(c).strip().zfill(6) for c in recommended_codes]
 
     else:
         print(" -> 밸류체인 조건(대장주 급등 & 연관주 동반 상승)에 부합하는 종목이 없습니다.")
@@ -100,6 +115,16 @@ def run_pipeline_with_rebalancing():
 
     # 예측 결과에서 유니버스에 해당하는 데이터만 추출
     target_prediction_df = prediction_df[prediction_df['code'].isin(final_universe_codes)].copy()
+    # 혹시 보유종목 중 예측 결과에 없는 종목(데이터 부족 등)이 있다면 점수 0으로라도 추가해줘야 함
+    existing_in_pred = target_prediction_df['code'].tolist()
+    missing_codes = [c for c in held_codes if c not in existing_in_pred]
+
+    if missing_codes:
+        print(f" [Info] 일부 보유종목 예측 데이터 부재 (0점 처리): {missing_codes}")
+        missing_data = [{'code': c, 'ai_score': 0.0, 'opinion': '관망'} for c in missing_codes]
+        target_prediction_df = pd.concat([target_prediction_df, pd.DataFrame(missing_data)], ignore_index=True)
+
+    print(f"\n [Step 4] 리밸런싱 대상: 총 {len(target_prediction_df)}개 종목")
 
     # ---------------------------------------------------------
     # [Step 5] 리밸런싱 시뮬레이션
