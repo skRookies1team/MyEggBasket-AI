@@ -22,7 +22,7 @@ env_path = os.path.join(project_root, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
-# 백엔드 설정 (잔고 조회용)
+# 백엔드 설정
 BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8081/api/app")
 TEST_EMAIL = os.getenv("TEST_EMAIL", "testuser@example.com")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "password1234")
@@ -38,7 +38,7 @@ from ai_pipeline.boosting_model.train import StackingEnsemble
 
 
 # -----------------------------------------------------------
-# 3. KIS Direct Trader (사용자 제공 코드 통합)
+# 3. KIS Direct Trader (직접 주문용)
 # -----------------------------------------------------------
 class KISMockTrader:
     def __init__(self):
@@ -49,12 +49,11 @@ class KISMockTrader:
         self.access_token = None
 
         if not all([self.app_key, self.app_secret, self.acc_no]):
-            print(" [KIS] .env에 모의투자 계좌 정보(APP_KEY, SECRET, ACCOUNT_NO)가 없습니다.")
+            print(" [KIS] .env 확인 필요: KIS_MOCK_APP_KEY, SECRET, ACCOUNT_NO 없음")
         else:
             self.auth()
 
     def auth(self):
-        """접근 토큰 발급"""
         headers = {"content-type": "application/json"}
         body = {
             "grant_type": "client_credentials",
@@ -80,17 +79,15 @@ class KISMockTrader:
             "tr_id": tr_id
         }
 
-    # 잔고 조회는 백엔드를 쓰므로 여기서는 생략 가능하나, 비상용으로 유지
-
     def buy_limit(self, stock_code, price, qty):
-        """지정가 매수 (현재가로 주문하여 시장가 효과)"""
+        """지정가 매수 (현재가 주문)"""
         if not self.access_token: return None
-        headers = self.get_common_headers("VTTC0802U")  # 모의투자 매수
+        headers = self.get_common_headers("VTTC0802U")
         body = {
             "CANO": self.acc_no,
             "ACNT_PRDT_CD": "01",
             "PDNO": stock_code,
-            "ORD_DVSN": "00",  # 00: 지정가 (백엔드의 03 문제 해결)
+            "ORD_DVSN": "00",  # 지정가
             "ORD_QTY": str(qty),
             "ORD_UNPR": str(price)
         }
@@ -99,9 +96,9 @@ class KISMockTrader:
         return res.json()
 
     def sell_limit(self, stock_code, price, qty):
-        """지정가 매도"""
+        """지정가 매도 (현재가 주문)"""
         if not self.access_token: return None
-        headers = self.get_common_headers("VTTC0801U")  # 모의투자 매도
+        headers = self.get_common_headers("VTTC0801U")
         body = {
             "CANO": self.acc_no,
             "ACNT_PRDT_CD": "01",
@@ -116,71 +113,131 @@ class KISMockTrader:
 
 
 # -----------------------------------------------------------
-# 4. 전략 및 메인 트레이더
+# 4. 포트폴리오 리밸런서 (제공해주신 로직 통합)
 # -----------------------------------------------------------
-class TradingStrategy:
-    def __init__(self):
-        self.state = {}
+class PortfolioRebalancer:
+    """AI 점수 기반 포트폴리오 리밸런싱 엔진"""
 
-    def get_action(self, code, current_data, holding_info):
-        score = current_data['score']
-        price = current_data['price']
-        vol_ratio = current_data.get('vol_ratio', 1.0)
+    def __init__(self, risk_aversion='neutral'):
+        self.risk_aversion = risk_aversion
 
-        if code not in self.state:
-            self.state[code] = {'prev_score': score, 'max_score': score}
+    def run_ai_rebalancing(self, current_holdings_amt, ai_scores_df, total_budget=None):
+        """
+        current_holdings_amt: {'005930': 5000000} (종목별 평가금액)
+        ai_scores_df: DataFrame ['code', 'ai_score']
+        """
+        if ai_scores_df is None or ai_scores_df.empty:
+            return pd.DataFrame()
 
-        prev_score = self.state[code]['prev_score']
-        self.state[code]['max_score'] = max(self.state[code]['max_score'], score)
+        # 1. 데이터 정제
+        cleaned_holdings = {str(k).strip().zfill(6): v for k, v in current_holdings_amt.items()}
+        current_total = sum(cleaned_holdings.values())
 
-        qty = holding_info.get('quantity', 0)
-        avg_price = holding_info.get('avgPrice', 0)
+        ai_scores_df = ai_scores_df.copy()
+        ai_scores_df['code'] = ai_scores_df['code'].astype(str).str.strip().str.zfill(6)
 
-        profit_pct = 0.0
-        if qty > 0 and avg_price > 0:
-            profit_pct = (price - avg_price) / avg_price
+        if total_budget is None:
+            total_budget = current_total
 
-        # 1. 손절매 (-3%)
-        if qty > 0 and profit_pct <= -0.03:
-            return 'SELL', 1.0, f"손절매 (수익률 {profit_pct * 100:.2f}%)"
+        # 2. 보유 종목 데이터 보정
+        merged_df = ai_scores_df.copy()
+        held_codes = set(cleaned_holdings.keys())
+        prediction_codes = set(merged_df['code'].values)
 
-        # 2. AI 점수 급락 (40점 미만) -> 전량 매도
-        if qty > 0 and score < 40:
-            return 'SELL', 1.0, f"전량매도 (점수 {score}점)"
+        missing_holdings = held_codes - prediction_codes
+        if missing_holdings:
+            missing_data = []
+            for code in missing_holdings:
+                # 점수 미확인 보유종목은 40점 부여 (유지/축소 유도)
+                missing_data.append({'code': code, 'ai_score': 40.0})
+            merged_df = pd.concat([merged_df, pd.DataFrame(missing_data)], ignore_index=True)
 
-        # 3. 익절 (고점 찍고 하락 시 차익 실현)
-        if qty > 0 and self.state[code]['max_score'] >= 90 and score < 85:
-            return 'SELL', 0.5, "차익실현 (고점 대비 하락)"
+        # 3. 이중 필터링
+        cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 60)
+        cond_keep = (merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 40)
 
-        # 4. 매수 진입
-        is_uptrend = score >= prev_score
-        is_valid_vol = vol_ratio >= 0.8
+        buy_candidates = merged_df[cond_new_buy | cond_keep].copy()
 
-        if is_uptrend and is_valid_vol:
-            if qty == 0 and score >= 60:
-                return 'BUY', 0.3, "1차 진입 (60점↑)"
-            elif qty > 0 and score >= 80 and prev_score < 80:
-                return 'BUY', 0.4, "2차 불타기 (80점 돌파)"
-            elif qty > 0 and score >= 90 and prev_score < 90:
-                return 'BUY', 0.3, "3차 확신 (90점 돌파)"
+        if buy_candidates.empty:
+            # 유효 대상이 없으면 보유종목 전량 매도 시그널 생성 필요
+            # 여기서는 빈 DF 리턴 -> 아래 로직에서 전량 매도 처리됨
+            pass
 
-        self.state[code]['prev_score'] = score
-        return 'HOLD', 0.0, ""
+        # 4. 비중 산출 (Score^2)
+        if not buy_candidates.empty:
+            buy_candidates['weight_score'] = np.power(buy_candidates['ai_score'], 2)
+            total_weight_score = buy_candidates['weight_score'].sum()
+            buy_candidates['target_ratio'] = buy_candidates['weight_score'] / total_weight_score
+        else:
+            # 후보가 아무도 없으면 빈 DF 유지
+            pass
+
+        # 5. 최종 주문 생성
+        rebalancing_plan = []
+        THRESHOLD_RATIO = 0.02
+        threshold_amt = total_budget * THRESHOLD_RATIO
+
+        # (1) 매수/유지/축소 대상
+        if not buy_candidates.empty:
+            for _, row in buy_candidates.iterrows():
+                code = row['code']
+                target_ratio = row['target_ratio']
+                target_amt = int(total_budget * target_ratio)
+                current_amt = int(cleaned_holdings.get(code, 0))
+                diff = target_amt - current_amt
+
+                if abs(diff) < threshold_amt:
+                    action = '유지'
+                elif diff > 0:
+                    action = '매수'
+                else:
+                    action = '비중축소'
+
+                rebalancing_plan.append({
+                    'code': code,
+                    'ai_score': row['ai_score'],
+                    'current_amt': current_amt,
+                    'target_amt': target_amt,
+                    'diff': int(diff),
+                    'action': action,
+                    'reason': f"목표비중 {target_ratio * 100:.1f}%"
+                })
+
+        # (2) 전량 매도 대상 (탈락한 보유 종목)
+        surviving_codes = set(buy_candidates['code'].values) if not buy_candidates.empty else set()
+        for code, amt in cleaned_holdings.items():
+            if code not in surviving_codes:
+                rebalancing_plan.append({
+                    'code': code,
+                    'ai_score': 0.0,
+                    'current_amt': int(amt),
+                    'target_amt': 0,
+                    'diff': -int(amt),
+                    'action': '전량매도',
+                    'reason': "점수 미달(40점 미만)"
+                })
+
+        df_plan = pd.DataFrame(rebalancing_plan)
+        if not df_plan.empty:
+            df_plan = df_plan.sort_values(by='diff', ascending=True)  # 매도 먼저 하도록 정렬
+
+        return df_plan
 
 
+# -----------------------------------------------------------
+# 5. 메인 트레이더 (AIAutoTrader)
+# -----------------------------------------------------------
 class AIAutoTrader:
     def __init__(self):
         print("\n" + "=" * 60)
-        print(" 🤖 [AI AutoTrader] 하이브리드 자동매매 (조회:백엔드 / 주문:Direct)")
+        print(" 🤖 [AI AutoTrader] 포트폴리오 리밸런싱 시스템")
         print("=" * 60)
 
         self.store = OnlineFeatureStore()
-        self.strategy = TradingStrategy()
-
-        # [NEW] KIS 직접 호출 객체 생성
-        self.kis_direct = KISMockTrader()
-
+        self.rebalancer = PortfolioRebalancer(risk_aversion='neutral')
+        self.kis_direct = KISMockTrader()  # 주문용
         self.model = StackingEnsemble()
+
         model_path = os.path.join(project_root, "ai_pipeline/boosting_model/models")
         try:
             self.model.load_model(model_path)
@@ -189,12 +246,9 @@ class AIAutoTrader:
             print(f" [Error] 모델 로드 실패: {e}")
             sys.exit(1)
 
-        self.target_codes = ["005930", "000660", "207940", "005380", "000270", "055550", "105560", "068270", "015760",
-                             "028260", "032830", "012330", "035420", "006400", "086790", "006405", "000810", "010140",
-                             "064350", "138040", "051910", "010130", "009540", "267260", "066570", "066575", "033780",
-                             "003550", "003555", "310200", "034020", "012450", "009830", "011070", "071050", "081660",
-                             "046890", "323410", "017670", "010620", "047050", "009155", "275630", "009835", "001440",
-                             "138930", "175330", "051900", "005490", "034220"]
+        # 감시 대상 유니버스
+        self.target_codes = ["005930", "000660", "207940", "005380", "000270", "055550", "105560", "035420", "006400",
+                             "051910", "000810", "010140", "009830", "011070", "047050", "009155", "051900"]
         self.auth_token = None
         self.init_csv_log()
 
@@ -203,7 +257,6 @@ class AIAutoTrader:
             with open(LOG_FILE_PATH, mode='w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 writer.writerow(['timestamp', 'code', 'action', 'qty', 'price', 'total_amt', 'reason'])
-            print(f" [Log] 로그 파일 생성: {LOG_FILE_PATH}")
 
     def save_trade_log(self, code, action, qty, price, reason):
         try:
@@ -216,9 +269,7 @@ class AIAutoTrader:
         except Exception as e:
             print(f"      ⚠️ 로그 저장 실패: {e}")
 
-    # -----------------------------------------------------------
-    # [백엔드 API - 잔고 조회]
-    # -----------------------------------------------------------
+    # --- 백엔드 API (잔고 조회용) ---
     def login(self):
         url = f"{BACKEND_API_URL}/auth/login"
         payload = {"email": TEST_EMAIL, "password": TEST_PASSWORD}
@@ -237,6 +288,7 @@ class AIAutoTrader:
         return {'Authorization': f'Bearer {self.auth_token}'}
 
     def get_balance(self):
+        """백엔드에서 잔고 조회 (예수금, 보유수량)"""
         url = f"{BACKEND_API_URL}/kis/trade/balance"
         params = {'virtual': 'true'}
         try:
@@ -250,105 +302,145 @@ class AIAutoTrader:
         except:
             return None
 
-    # -----------------------------------------------------------
-    # [Direct KIS API - 주문 실행] (수정된 부분)
-    # -----------------------------------------------------------
-    def send_order(self, code, type_str, price, qty, reason):
-        """
-        백엔드 거치지 않고 직접 KIS API 호출
-        """
-        print(f"      📡 직접 주문 전송... [{code} {qty}주 @ {price}원] ({type_str})")
-
+    # --- 주문 실행 (KIS Direct) ---
+    def send_order(self, code, action, price, qty, reason):
+        print(f"      📡 주문 전송... [{code} {qty}주 {action}] ({reason})")
         res = None
-        if type_str == "BUY":
+        if action == '매수':
             res = self.kis_direct.buy_limit(code, price, qty)
-        elif type_str == "SELL":
+        elif action in ['비중축소', '전량매도']:  # 둘 다 매도 로직
             res = self.kis_direct.sell_limit(code, price, qty)
 
-        # 결과 처리
         if res:
             rt_cd = res.get('rt_cd')
             msg1 = res.get('msg1')
             if rt_cd == '0':
-                print(f"      ✅ 주문 성공! (KIS Direct) - {msg1}")
-                self.save_trade_log(code, type_str, qty, price, reason)
+                print(f"      ✅ 주문 성공! - {msg1}")
+                self.save_trade_log(code, action, qty, price, reason)
                 return True
             else:
-                print(f"      ❌ 주문 실패 (KIS Direct): {msg1} (코드: {rt_cd})")
+                print(f"      ❌ 주문 실패: {msg1} (코드:{rt_cd})")
                 return False
-        else:
-            print("      ❌ 주문 통신 오류 (KIS Direct)")
-            return False
+        return False
 
     def analyze_stock(self, code):
         features = self.store.get_realtime_features(code)
-        if features is None or features.empty:
-            return None
-
+        if features is None or features.empty: return None
         probs = self.model.predict_proba(features)
         score = probs[0, 1] * 100 if hasattr(probs, 'ndim') and probs.ndim == 2 else probs[1] * 100
-
         return {
-            'score': round(score, 2),
-            'price': int(features['close'].values[0]),
-            'vol_ratio': features.get('hist_Vol_Ratio', pd.Series([1.0])).values[0]
+            'code': code,
+            'ai_score': round(score, 2),
+            'current_price': int(features['close'].values[0])
         }
 
     def run_cycle(self):
-        print(f"\n 🕒 [Cycle] {datetime.now().strftime('%H:%M:%S')} 시장 감시 시작")
+        print(f"\n 🕒 [Cycle] {datetime.now().strftime('%H:%M:%S')} 리밸런싱 시작")
 
         if not self.auth_token:
             if not self.login(): return
 
-        # 1. 잔고 조회 (백엔드 이용)
+        # 1. 잔고 조회
         balance_data = self.get_balance()
         if not balance_data: return
 
         summary = balance_data.get('summary', {})
-        holdings_list = balance_data.get('holdings')
-        if holdings_list is None: holdings_list = []
+        holdings_list = balance_data.get('holdings') or []
 
         try:
             cash = int(summary.get('totalCashAmount', 0))
         except:
             cash = 0
 
-        my_holdings = {h['stockCode']: h for h in holdings_list}
-        print(f" 💰 예수금: {cash:,}원 | 보유종목: {len(my_holdings)}개")
+        # 보유 종목 파싱 {code: {qty, price, amt}}
+        # 백엔드 DTO 필드명 주의 (quantity, currentPrice 등)
+        my_holdings_map = {}
+        for h in holdings_list:
+            code = h['stockCode']
+            qty = h.get('quantity', 0)
+            # 현재가는 백엔드 데이터보다 실시간 조회가 더 정확하므로 나중에 업데이트
+            my_holdings_map[code] = {'qty': qty, 'price': 0, 'amt': 0}
 
-        universe = set(self.target_codes) | set(my_holdings.keys())
+        print(f" 💰 예수금: {cash:,}원 | 보유종목: {len(my_holdings_map)}개")
+
+        # 2. 유니버스 분석 (전체 종목 AI 점수 산출)
+        universe = set(self.target_codes) | set(my_holdings_map.keys())
+        ai_results = []
 
         for code in universe:
-            market_data = self.analyze_stock(code)
-            if not market_data: continue
+            data = self.analyze_stock(code)
+            if data:
+                ai_results.append(data)
+                # 보유종목이면 현재가/평가금액 업데이트
+                if code in my_holdings_map:
+                    price = data['current_price']
+                    qty = my_holdings_map[code]['qty']
+                    my_holdings_map[code]['price'] = price
+                    my_holdings_map[code]['amt'] = price * qty
 
-            holding_info = my_holdings.get(code, {'quantity': 0, 'avgPrice': 0})
+        if not ai_results:
+            print(" [Info] 분석 가능한 종목 데이터가 없습니다.")
+            return
 
-            # 전략 판단
-            action, ratio, reason = self.strategy.get_action(code, market_data, holding_info)
+        ai_scores_df = pd.DataFrame(ai_results)
 
-            status_mk = "🔴보유" if holding_info.get('quantity', 0) > 0 else "⚪미보유"
-            print(f"   [{code}] {market_data['score']}점 ({status_mk}) -> {action} ({reason})")
+        # 3. 리밸런서 실행
+        # (1) 보유 종목 평가금액 맵핑
+        current_holdings_amt = {code: info['amt'] for code, info in my_holdings_map.items()}
+        # (2) 총 자산 (예수금 + 주식평가액)
+        total_stock_val = sum(current_holdings_amt.values())
+        total_asset = cash + total_stock_val
 
-            # 주문 실행
-            if action == 'BUY':
-                amount_to_buy = 1_000_000 * ratio
-                safe_cash = cash * 0.95
+        print(f" [Asset] 총 자산: {total_asset:,}원 (주식:{total_stock_val:,} + 현금:{cash:,})")
 
-                if safe_cash >= amount_to_buy:
-                    qty = int(amount_to_buy // market_data['price'])
-                    if qty > 0:
-                        if self.send_order(code, "BUY", market_data['price'], qty, reason):
-                            cash -= amount_to_buy
-                else:
-                    if safe_cash >= 100000:
-                        print(f"      ⚠️ 예수금 부족 (필요: {amount_to_buy:,.0f} > 가능: {safe_cash:,.0f})")
+        # (3) 계획 산출
+        plan_df = self.rebalancer.run_ai_rebalancing(current_holdings_amt, ai_scores_df, total_budget=total_asset)
 
-            elif action == 'SELL':
-                current_qty = holding_info.get('quantity', 0)
-                qty_to_sell = int(current_qty * ratio)
+        if plan_df.empty:
+            print(" [Plan] 매매할 건이 없습니다.")
+            return
+
+        print("\n [리밸런싱 계획]")
+        print(plan_df[['code', 'ai_score', 'action', 'diff', 'reason']].to_string(index=False))
+
+        # 4. 주문 실행 (매도 먼저 -> 현금확보 -> 매수)
+        # diff가 오름차순 정렬되어 있으므로 (음수=매도) 순서대로 실행하면 됨
+
+        for _, row in plan_df.iterrows():
+            action = row['action']
+            if action == '유지': continue
+
+            code = row['code']
+            price = 0
+            # 가격 찾기
+            found = [x for x in ai_results if x['code'] == code]
+            if found: price = found[0]['current_price']
+
+            if price == 0: continue
+
+            # 수량 계산
+            # 매도(비중축소/전량매도): diff는 음수
+            if action in ['비중축소', '전량매도']:
+                amt_to_sell = abs(row['diff'])
+                qty_to_sell = int(amt_to_sell // price)
                 if qty_to_sell > 0:
-                    self.send_order(code, "SELL", market_data['price'], qty_to_sell, reason)
+                    self.send_order(code, action, price, qty_to_sell, row['reason'])
+                    # 가상 잔고 반영 (매수 자금 확보용)
+                    cash += (qty_to_sell * price)
+
+                    # 매수
+            elif action == '매수':
+                amt_to_buy = row['diff']
+                # 안전장치: 예수금 확인
+                safe_cash = cash * 0.95
+                if safe_cash >= amt_to_buy:
+                    qty_to_buy = int(amt_to_buy // price)
+                    if qty_to_buy > 0:
+                        if self.send_order(code, action, price, qty_to_buy, row['reason']):
+                            cash -= (qty_to_buy * price)
+                else:
+                    if safe_cash > 100000:  # 로그 너무 많이 뜨는 것 방지
+                        print(f"      ⚠️ 예수금 부족 ({code}): 필요 {amt_to_buy:,} > 가능 {safe_cash:,.0f}")
 
         print(" [Cycle] 종료")
 
