@@ -74,7 +74,7 @@ class StackingEnsemble:
         # [수정 1] 클래스 불균형 비율 계산 및 적용
         num_pos = y_train.sum()
         num_neg = len(y_train) - num_pos
-        scale_pos_weight = num_neg / num_pos
+        scale_pos_weight = np.sqrt(num_neg / num_pos)
 
         print(f" [Info] 데이터 비율 - Positive: {num_pos}, Negative: {num_neg}")
         print(f" [Info] 적용할 scale_pos_weight: {scale_pos_weight:.4f}")

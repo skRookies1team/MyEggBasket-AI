@@ -2,44 +2,6 @@ import pandas as pd
 import numpy as np
 
 
-class PortfolioEngine:
-    def __init__(self, max_turnover=0.2):
-        self.max_turnover = max_turnover  # 한 번에 바꿀 수 있는 최대 비중 (20%)
-
-    def calculate_weights(self, prediction_df, current_portfolio):
-        """
-        prediction_df: ['stock_code', 'ai_score'] (score: 0.0 ~ 1.0)
-        current_portfolio: {'stock_code': current_weight}
-        """
-        target_weights = {}
-
-        # 1. Score 기반 기본 비중 산출 (Softmax 또는 비례 배분)
-        # 예: 0.6 이상인 종목만 매수 대상
-        candidates = prediction_df[prediction_df['ai_score'] > 0.6].copy()
-
-        if candidates.empty:
-            return {}  # 매수할 게 없음 (현금 보유)
-
-        # 점수 비례 배분 (Simple Logic)
-        total_score = candidates['ai_score'].sum()
-        candidates['target_weight'] = candidates['ai_score'] / total_score
-
-        # 2. 리스크 관리 및 제약 조건 적용 (Rebalancing)
-        for code, row in candidates.iterrows():
-            target_w = row['target_weight']
-            current_w = current_portfolio.get(code, 0.0)
-
-            # 급격한 변동 제한 (Turnover Constraint)
-            # 목표가 10%인데 현재 0%라면, 이번엔 5%까지만 매수 등
-            diff = target_w - current_w
-            if abs(diff) > self.max_turnover:
-                target_w = current_w + (np.sign(diff) * self.max_turnover)
-
-            target_weights[code] = target_w
-
-        return target_weights
-
-
 class PortfolioRebalancer:
     """
     AI 점수 기반 포트폴리오 리밸런싱 엔진
@@ -61,61 +23,105 @@ class PortfolioRebalancer:
             print(" [Error] AI 예측 점수가 없습니다.")
             return pd.DataFrame()
 
-        # 1. 자산 총액 계산
-        current_total = sum(current_holdings.values())
+        # ------------------------------------------------------------------
+        # [핵심 수정 1] 데이터 무결성 확보 (공백 제거 및 6자리 통일)
+        # ------------------------------------------------------------------
+        # 보유 종목 코드 정제
+        cleaned_holdings = {str(k).strip().zfill(6): v for k, v in current_holdings.items()}
+        current_total = sum(cleaned_holdings.values())
+
+        # 예측 데이터 코드 정제
+        ai_scores_df = ai_scores_df.copy()
+        ai_scores_df['code'] = ai_scores_df['code'].astype(str).str.strip().str.zfill(6)
+
         if total_budget is None:
             total_budget = current_total
 
-        # 보유 중이지만 AI 점수가 없는 종목 처리 (기본 점수 부여)
+        # ------------------------------------------------------------------
+        # 1. 데이터 병합 (보유 종목 누락 방지)
+        # ------------------------------------------------------------------
+        # 보유 중이지만 AI 점수가 없는 종목 -> 기본 점수(40점) 부여하여 급격한 매도 방지
         merged_df = ai_scores_df.copy()
-        for code in current_holdings.keys():
-            if code not in merged_df['code'].values:
-                # 점수 정보가 없으면 중립(50점) 혹은 매도 유도(30점) 처리
-                new_row = pd.DataFrame({'code': [code], 'ai_score': [40.0], 'opinion': ['데이터없음']})
-                merged_df = pd.concat([merged_df, new_row], ignore_index=True)
+        held_codes = set(cleaned_holdings.keys())
 
-        # 2. Score to Weight 변환 (비중 산출 로직)
-        # 점수가 임계치(예: 60점) 이상인 종목들만 매수 대상으로 선정
-        buy_candidates = merged_df[merged_df['ai_score'] >= 60].copy()
+        # 예측 결과에 없는 보유 종목 찾기
+        prediction_codes = set(merged_df['code'].values)
+        missing_holdings = held_codes - prediction_codes
+
+        if missing_holdings:
+            print(f" [Info] 점수 미확인 보유종목 기본값 처리: {missing_holdings}")
+            missing_data = []
+            for code in missing_holdings:
+                missing_data.append({'code': code, 'ai_score': 40.0, 'opinion': '데이터없음'})
+            merged_df = pd.concat([merged_df, pd.DataFrame(missing_data)], ignore_index=True)
+
+        # ------------------------------------------------------------------
+        # [핵심 수정 2] 이중 필터링 로직 (Dual Threshold)
+        # - 신규 종목: 60점 이상이어야 매수 (깐깐함)
+        # - 보유 종목: 40점 이상이면 유지 (관대함 - 비중 축소로 유도)
+        # ------------------------------------------------------------------
+
+        # 조건 1: 신규 진입 (보유X AND 점수 >= 60)
+        cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 60)
+
+        # 조건 2: 보유 유지 (보유O AND 점수 >= 40) -> 삼성전자(45점)가 여기서 살아남음!
+        cond_keep = (merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 40)
+
+        # 최종 후보군 선정
+        buy_candidates = merged_df[cond_new_buy | cond_keep].copy()
 
         if buy_candidates.empty:
-            print(" [Warning] 매수 추천 종목(60점 이상)이 없습니다. 전량 현금화 또는 관망을 추천합니다.")
+            print(" [Warning] 유효한 투자 대상이 없습니다. 전량 현금화 또는 관망을 추천합니다.")
             return pd.DataFrame()
 
-        # 점수 제곱 등을 통해 상위 종목에 더 많은 비중 부여 (Softmax 유사 효과)
+        # ------------------------------------------------------------------
+        # 2. 비중 산출 (Score^2 가중치 방식)
+        # ------------------------------------------------------------------
+        # 점수 제곱을 통해 고득점 종목에 비중을 몰아줌 (Softmax 효과)
+        # 45점(삼성전자) vs 95점(주도주) -> 2025 vs 9025 -> 약 4.5배 비중 차이 발생
         buy_candidates['weight_score'] = np.power(buy_candidates['ai_score'], 2)
         total_weight_score = buy_candidates['weight_score'].sum()
 
         buy_candidates['target_ratio'] = buy_candidates['weight_score'] / total_weight_score
 
+        # ------------------------------------------------------------------
         # 3. 최종 주문 생성
+        # ------------------------------------------------------------------
         rebalancing_plan = []
 
         # (1) 매수/보유 대상 처리
         for _, row in buy_candidates.iterrows():
             code = row['code']
             target_ratio = row['target_ratio']
-            target_amt = total_budget * target_ratio
-            current_amt = current_holdings.get(code, 0)
+            target_amt = int(total_budget * target_ratio)
+            current_amt = int(cleaned_holdings.get(code, 0))
             diff = target_amt - current_amt
+
+            # 액션 결정
+            if diff > 0:
+                action = '매수'
+            elif diff < 0:
+                action = '비중축소'  # 0점이 아니므로 '전량매도'가 아닌 '축소'가 됨
+            else:
+                action = '유지'
 
             rebalancing_plan.append({
                 'code': code,
                 'ai_score': row['ai_score'],
-                'current_amt': int(current_amt),
+                'current_amt': current_amt,
                 'target_ratio': round(target_ratio, 4),
-                'target_amt': int(target_amt),
+                'target_amt': target_amt,
                 'diff': int(diff),
-                'action': '매수' if diff > 0 else '비중축소'
+                'action': action
             })
 
-        # (2) 매도 대상 처리 (점수가 낮아서 buy_candidates에 못 든 보유 종목)
-        buy_codes = set(buy_candidates['code'].values)
-        for code, amt in current_holdings.items():
-            if code not in buy_codes:
+        # (2) 전량 매도 대상 처리 (점수가 너무 낮아(40점 미만) 탈락한 보유 종목)
+        surviving_codes = set(buy_candidates['code'].values)
+        for code, amt in cleaned_holdings.items():
+            if code not in surviving_codes:
                 rebalancing_plan.append({
                     'code': code,
-                    'ai_score': 0.0,  # 점수 낮음
+                    'ai_score': 0.0,  # 기준 미달
                     'current_amt': int(amt),
                     'target_ratio': 0.0,
                     'target_amt': 0,
@@ -125,46 +131,43 @@ class PortfolioRebalancer:
 
         df_plan = pd.DataFrame(rebalancing_plan)
 
-        # 보기 좋게 정렬
-        df_plan = df_plan.sort_values(by='target_amt', ascending=False)
+        # 금액 기준 내림차순 정렬
+        if not df_plan.empty:
+            df_plan = df_plan.sort_values(by='target_amt', ascending=False)
+
         return df_plan[['code', 'ai_score', 'action', 'diff', 'target_amt', 'current_amt', 'target_ratio']]
 
 
-
 # ==========================================
-# 테스트 실행 코드 (사용 예시)
+# 테스트 실행 코드 (버그 수정됨)
 # ==========================================
 if __name__ == "__main__":
     rebalancer = PortfolioRebalancer()
-    
-    # [상황 설정] 내 계좌 상황
+
+    # [상황 설정]
     my_portfolio = {
-        '005930': 5000000, # 삼성전자
-        '000660': 4000000, # SK하이닉스
-        '005380': 1000000  # 현대차
+        '005930': 15000000,  # 삼성전자 (보유중)
+        '000660': 5000000,  # SK하이닉스 (보유중)
     }
-    
-    # [가상 데이터] AI가 분석한 점수라고 가정
-    # 실제로는 analyzer.get_ai_scores() 결과를 넣으면 됩니다.
+
+    # [가상 데이터]
+    # 삼성전자: 45점 (기존 로직이면 전량매도였으나, 이제는 비중축소로 살아남아야 함)
+    # 하이닉스: 95점 (강력 매수)
+    # 카카오: 70점 (신규 진입)
     fake_ai_scores = pd.DataFrame({
-        'code': ['005930', '000660', '005380'],
-        'ai_score': [80.0, 40.0, 90.0] 
-        # 현대차(90) > 삼성전자(80) > 하이닉스(40)
+        'code': ['005930', '000660', '035720'],
+        'ai_score': [45.0, 95.0, 70.0],
+        'opinion': ['중립', '강력매수', '매수']
     })
-    
+
     # 실행
     df = rebalancer.run_ai_rebalancing(my_portfolio, fake_ai_scores)
-    
-    # 출력
+
+    # 출력 확인
+    print("\n [테스트 결과 확인]")
     print(df.to_string(index=False))
+
     print("-" * 60)
-    print(" 해석:")
+    # 005930이 '전량매도'가 아니라 '비중축소'로 뜨는지 확인
     for _, row in df.iterrows():
-        action = row['매매제안']
-        if action == "BUY":
-            print(f"   [{row['종목코드']}] 비중이 부족합니다. {abs(row['차액']):,.0f}원 만큼 더 사세요 (매수)")
-        elif action == "SELL":
-            print(f"   [{row['종목코드']}] 비중이 너무 높습니다. {abs(row['차액']):,.0f}원 만큼 파세요 (매도)")
-        else:
-            print(f"   [{row['종목코드']}] 목표 비중과 일치합니다. (유지)")
-            
+        print(f" [{row['code']}] {row['ai_score']}점 -> {row['action']} (목표금액: {row['target_amt']:,}원)")
