@@ -106,4 +106,4 @@ def test_realtime_prediction(target_code="005930"):
 
 if __name__ == "__main__":
     # 테스트할 종목 코드 변경 가능
-    test_realtime_prediction("005930")  # SK하이닉스 예시
+    test_realtime_prediction("005930")
