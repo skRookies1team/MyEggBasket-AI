@@ -36,7 +36,7 @@ class GCNFeatureExtractor:
 
         # 경로 설정
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.gcn_dir = os.path.abspath(os.path.join(current_dir, "../gcn_model"))
+        self.gcn_dir = os.path.abspath(os.path.join(current_dir, "../../data"))
 
         # 1순위: 저장된 결과 파일 (.npy + .csv)
         self.npy_path = os.path.join(self.gcn_dir, "gcn_embeddings.npy")

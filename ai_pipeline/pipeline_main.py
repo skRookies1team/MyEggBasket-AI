@@ -100,49 +100,7 @@ def run_full_pipeline():
         # [Step 5] 밸류체인 분석 (CSV 기반 추천 보여주기)
         show_value_chain_recommendations()
 
-# 공시 데이터 전처리: 통합 CSV가 없거나 최신화가 필요하면 전처리 스크립트를 호출
-        try:
-            from ai_pipeline.disclosure_pipeline import preprocess_disclosures_csv as prep_mod
-            print("\n [선택] 공시 데이터 전처리 확인: integrated_financial_data.csv 생성/업데이트 시도")
-            try:
-                prep_mod.main()
-            except SystemExit:
-                # 모듈이 argparse 내부에서 SystemExit를 일으키면 무시
-                pass
-            
-            # 전처리 결과 확인 및 출력
-            try:
-                import pandas as pd
-                csv_path = os.path.join(os.path.dirname(prep_mod.__file__), 'data', 'integrated_financial_data.csv')
-                if os.path.exists(csv_path):
-                    df_disc = pd.read_csv(csv_path, encoding='utf-8-sig')
-                    print(f"    ✓ 통합 공시 CSV 로드 성공: {len(df_disc)}개 종목, {len(df_disc.columns)}개 컬럼")
-                    print(f"    ✓ 공시 컬럼 샘플: {list(df_disc.columns)[:10]}")
-                    if len(df_disc) > 0:
-                        print(f"    ✓ 공시 데이터 샘플 (상위 3개 종목):")
-                        sample_cols = ['stock_code', 'bsns_year', 'fin_revenue', 'fin_net_income', 'emp_total_count']
-                        available_cols = [c for c in sample_cols if c in df_disc.columns]
-                        if available_cols:
-                            print(df_disc[available_cols].head(3).to_string(index=False))
-            except Exception as e:
-                print(f"    공시 데이터 확인 중 오류: {e}")
-        except Exception:
-            # 실패시 넘어감 (공시가 필수는 아님)
-            pass
-
-        # 공시 전처리 결과를 MongoDB에 업로드(있는 경우) — 선택적 자동 업로드
-        try:
-            from ai_pipeline.disclosure_pipeline import upload_integrated_to_mongo as upload_mod
-            print("\n [선택] 통합 공시 CSV를 MongoDB에 업로드 시도")
-            try:
-                # upload 모듈은 argparse 기반 main()을 제공하므로 직접 호출
-                upload_mod.main()
-            except SystemExit:
-                pass
-        except Exception as e:
-            print(f" [선택] Mongo 업로드 모듈 호출 실패(무시): {e}")
-
-        # [Step 6] 모델 학습 (공시 데이터 포함)
+        # [Step 6] 모델 학습
         print("\n [Step 6/7] Boosting Model 학습 (공시 피처 포함)")
         try:
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
