@@ -21,7 +21,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 
 from ai_pipeline.boosting_model.feature_engineering import FeatureEngineer
 
-
 class StackingEnsemble:
     """
     XGBoost + LightGBM 스태킹 앙상블 (불균형 데이터 처리 강화 버전)
