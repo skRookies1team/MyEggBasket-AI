@@ -5,14 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/trade/optimize_params.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/gcn_model/gcn_embeddings.npy" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/gcn_model/run_gcn.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/gcn_model/run_gcn.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/pipeline_main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/lgb_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/lgb_model.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/meta_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/meta_model.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/xgb_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/xgb_model.pkl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/gcn_embeddings.npy" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,13 +43,13 @@
   <component name="ProjectLevelVcsManager">
     <ConfirmationsSetting value="2" id="Add" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.train_from_csv.executor": "Run",
-    "git-widget-placeholder": "feat/97__auto__trading__system",
-    "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/data"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.train_from_csv.executor&quot;: &quot;Run&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/97__auto__trading__system&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/data&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/data" />
