@@ -4,17 +4,17 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GAE
 from torch_geometric.data import Data
-from torch_geometric.utils import train_test_split_edges
 import torch_geometric.transforms as T
 import numpy as np
 import pandas as pd
 from elasticsearch import Elasticsearch
-from ai_pipeline.config.settings import ES_HOST
 
 # 프로젝트 루트 경로 설정 (기존과 동일하게 유지)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
+
+from ai_pipeline.config.settings import ES_HOST
 
 # ==========================================
 # 1. 데이터 로드 및 그래프 생성 클래스

@@ -80,11 +80,11 @@ class PortfolioRebalancer:
         # -------------------------------------------------------
         # [쿨타임 필터링] 전량 매도한 지 얼마 안 된 종목은 매수 후보에서 제외
         # -------------------------------------------------------
-        SELL_COOLDOWN_MINUTES = 20  # 전량매도 후 20분간 매수 금지
+        SELL_COOLDOWN_MINUTES = 24
         now = datetime.now()
 
         # 3. 필터링 (매수/유지 대상)
-        cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 60)
+        cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= 69)
         cond_hold = (merged_df['code'].isin(held_codes))
 
         # 전체 후보군
@@ -107,7 +107,7 @@ class PortfolioRebalancer:
 
         # 4. 비중 산출
         # 점수가 40점 미만이면 비중 0 (확정 매도 신호)
-        candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= 40 else 0)
+        candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= 39 else 0)
         candidates['weight_score'] = np.power(candidates['calc_score'], 2)
         total_weight_score = candidates['weight_score'].sum()
 
@@ -122,8 +122,8 @@ class PortfolioRebalancer:
         threshold_amt = total_budget * THRESHOLD_RATIO
 
         # [설정] 전략 파라미터
-        PROFIT_TAKE_RATE = 3.0  # 익절 기준 3% (적극적)
-        STOP_LOSS_RATE = -3.0  # 손절 기준 -3%
+        PROFIT_TAKE_RATE = 2.2  # 익절 기준 3% (적극적)
+        STOP_LOSS_RATE = -5.6  # 손절 기준 -3%
 
         for _, row in candidates.iterrows():
             code = row['code']
