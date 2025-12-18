@@ -4,6 +4,7 @@ import torch
 import json
 import os
 import sys
+from tqdm import tqdm
 import re
 import glob
 from datetime import datetime, timedelta
@@ -305,30 +306,27 @@ class FeatureEngineer:
             cache_file = "cached_final_features.csv"
 
         # -----------------------------------------------------
-        # [수정됨] 1. 캐시 확인 및 로드 (구현 완료)
+        # 1. 캐시 확인 및 로드
         # -----------------------------------------------------
         if use_cache and not force_update and os.path.exists(cache_file):
             print(f" [Cache] 기존 통합 데이터 발견! 로드 중... ({cache_file})")
             try:
-                # 데이터 로드
                 df_cache = pd.read_csv(cache_file)
-
-                # 필수 컬럼 분리 (X, y, codes)
                 if 'target' not in df_cache.columns:
                     print(" [Cache Error] 'target' 컬럼이 없습니다. 재생성합니다.")
                 else:
-                    # y 분리
                     y = df_cache['target']
-
-                    # 종목코드(codes) 분리 (stck_shrn_iscd로 저장됨)
                     if 'stck_shrn_iscd' in df_cache.columns:
                         codes = df_cache['stck_shrn_iscd']
-                        # 학습용 X에서는 타겟과 코드 모두 제외
-                        X = df_cache.drop(columns=['target', 'stck_shrn_iscd'])
+                        # 학습용 X에서는 타겟, 코드, 그리고 메타데이터(close, timestamp 등) 제외
+                        exclude_cols = ['target', 'stck_shrn_iscd', 'timestamp', 'close', 'date', 'time']
+                        X = df_cache.drop(columns=[c for c in exclude_cols if c in df_cache.columns], errors='ignore')
                     else:
-                        # 코드가 없으면 0으로 채움 (비추천)
                         codes = pd.Series([0] * len(df_cache))
                         X = df_cache.drop(columns=['target'])
+
+                    # 숫자형 데이터만 남김 (안전장치)
+                    X = X.select_dtypes(include=[np.number])
 
                     print(f" [Cache] 로드 완료! (샘플 수: {len(X):,})")
                     return X, y, codes
@@ -337,15 +335,13 @@ class FeatureEngineer:
                 print(f" [Cache Error] 로드 중 오류 발생: {e}. 데이터를 재생성합니다.")
 
         # -----------------------------------------------------
-        # 2. 캐시가 없으면 생성 (기존 로직)
+        # 2. 캐시가 없으면 생성
         # -----------------------------------------------------
         csv_files = []
         if self.csv_path and os.path.exists(self.csv_path):
             csv_files = [self.csv_path]
         elif self.data_dir and os.path.isdir(self.data_dir):
             all_csvs = glob.glob(os.path.join(self.data_dir, "*.csv"))
-
-            # [수정] 파일 필터링: '_1Year' 패턴이 있는 파일만 사용 (초 단위 데이터 제외)
             csv_files = [
                 f for f in all_csvs
                 if '_1Year' in f
@@ -378,8 +374,31 @@ class FeatureEngineer:
 
         print("\n 모델 입력을 위한 데이터 클리닝...")
 
-        # 학습에 불필요한 식별자 컬럼 제거 (timestamp 포함)
-        drop_cols = ['stck_shrn_iscd', 'stock_code', 'code', 'date', 'timestamp']
+        # [수정] CSV 저장용 메타데이터 백업 (학습에는 제외, 파일에는 저장)
+        meta_data = {}
+
+        # 1) Close 컬럼 처리: 대소문자 구분 없이 찾아 소문자 'close'로 저장
+        if 'Close' in final_X.columns:
+            meta_data['close'] = final_X['Close']
+        elif 'close' in final_X.columns:
+            meta_data['close'] = final_X['close']
+
+        # 2) 기타 필수 컬럼 백업
+        req_cols = ['timestamp', 'open', 'high', 'low', 'volume', 'date', 'time']
+        for col in req_cols:
+            # 대문자로 시작하는 경우 등 다양한 케이스 대응 가능하게 확장 가능
+            if col in final_X.columns:
+                meta_data[col] = final_X[col]
+            elif col.capitalize() in final_X.columns:  # Open, High 등 대응
+                meta_data[col] = final_X[col.capitalize()]
+
+        # [수정] 학습용 데이터셋(X) 생성: 식별자 및 메타데이터(Raw Price 등) 제거
+        # Close/close가 포함되어 있다면 학습 데이터에서 제거합니다.
+        drop_cols = ['stck_shrn_iscd', 'stock_code', 'code', 'date', 'timestamp', 'Close', 'close']
+
+        # 메타데이터에 들어간 컬럼들도 학습용 X에서는 제거 (중복 방지 및 Raw Price 학습 방지)
+        drop_cols.extend(list(meta_data.keys()))
+
         final_X = final_X.drop(columns=[c for c in drop_cols if c in final_X.columns], errors='ignore')
         final_X = final_X.select_dtypes(include=[np.number])
 
@@ -389,8 +408,11 @@ class FeatureEngineer:
         print(f" [Cache] 다음 실행 속도 향상을 위해 데이터를 저장합니다... ({cache_file})")
         save_df = final_X.copy()
         save_df['target'] = final_y
-        # 나중에 복원할 수 있도록 코드 컬럼 추가
         save_df['stck_shrn_iscd'] = final_codes.values
+
+        # 백업해둔 메타데이터 복구 (이때 키 값이 컬럼명이 됨 -> 'close'로 저장됨)
+        for col_name, col_data in meta_data.items():
+            save_df[col_name] = col_data
 
         save_df.to_csv(cache_file, index=False)
         print(" [Cache] 저장 완료!")
@@ -401,16 +423,114 @@ class FeatureEngineer:
         return final_X, final_y, final_codes
 
 
+def process_and_save_data(data_dir, cache_file):
+    print(f"\n[Info] 데이터 처리 시작... (경로: {data_dir})")
+
+    csv_files = glob.glob(os.path.join(data_dir, "*_1Year.csv"))
+    if not csv_files:
+        print("❌ 처리할 CSV 파일이 없습니다.")
+        return
+
+    # 1. 로더 초기화
+    expander = FeatureExpander() if 'FeatureExpander' in globals() and FeatureExpander else None
+    gcn_extractor = GCNFeatureExtractor()
+
+    all_data_list = []
+
+    for file_path in tqdm(csv_files, desc="파일 처리 중"):
+        try:
+            filename = os.path.basename(file_path)
+            code = filename.split('_')[0]
+
+            # CSV 로드
+            df = pd.read_csv(file_path)
+            df.columns = [c.strip().lower() for c in df.columns]  # 컬럼 소문자 통일
+
+            # 가격 컬럼명 보정
+            if 'close' not in df.columns and 'price' in df.columns:
+                df.rename(columns={'price': 'close'}, inplace=True)
+
+            if 'close' not in df.columns:
+                continue
+
+            # [중요] 원본 데이터 백업 (피처 엔지니어링 후 복구용)
+            raw_close = df['close'].copy()
+
+            # Timestamp 생성
+            if 'timestamp' not in df.columns:
+                if 'date' in df.columns and 'time' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['date'].astype(str) + df['time'].astype(str).str.zfill(6),
+                                                     format='%Y%m%d%H%M%S', errors='coerce')
+                else:
+                    # 날짜가 없으면 현재 시간 기준 역산 (임시)
+                    df['timestamp'] = pd.date_range(end=datetime.now(), periods=len(df), freq='10min')
+
+            raw_timestamp = df['timestamp'].copy()
+
+            # 2. 피처 엔지니어링 적용 (기술적 지표 추가)
+            if expander:
+                # add_technical_indicators 메서드가 있는지 확인 후 호출
+                if hasattr(expander, 'add_technical_indicators'):
+                    df = expander.add_technical_indicators(df)
+                elif hasattr(expander, 'expand'):
+                    df = expander.expand(df)
+
+            # GCN 피처 추가
+            gcn_feats = gcn_extractor.get_features(code)
+            for k, v in gcn_feats.items():
+                df[k] = v
+
+            # 식별자 추가
+            df['code'] = code
+            df['stck_shrn_iscd'] = code
+
+            # [핵심] 필수 컬럼(가격, 시간) 강제 복구
+            df['close'] = raw_close.values
+            df['timestamp'] = raw_timestamp.values
+
+            # 타겟 변수 (Target) - 필요 시 사용
+            if 'target' not in df.columns:
+                df['target'] = (df['close'].shift(-1) > df['close']).astype(int)
+
+            # 결측치 제거 (지표 계산으로 인한 앞부분 NaN)
+            df.dropna(inplace=True)
+
+            all_data_list.append(df)
+
+        except Exception as e:
+            print(f"❌ {file_path} 처리 실패: {e}")
+
+    if not all_data_list:
+        print("❌ 병합할 데이터가 없습니다.")
+        return
+
+    # 3. 통합 및 저장
+    final_df = pd.concat(all_data_list, ignore_index=True)
+    final_df.sort_values(['timestamp', 'code'], inplace=True)
+
+    print(f"\n📊 통합 데이터 크기: {final_df.shape}")
+
+    # 저장 전 검증
+    if 'close' not in final_df.columns:
+        print("🚨 'close' 컬럼 누락됨! 강제 복구 시도...")
+        # (혹시라도 누락되었을 경우를 대비한 비상 로직은 여기서 처리 불가하므로 위 루프에서 해결해야 함)
+
+    final_df.to_csv(cache_file, index=False)
+    print(f"✅ 저장 완료! ({cache_file})")
+    print(f"🔎 포함된 컬럼(일부): {list(final_df.columns)[:10]} ...")
+
+
 if __name__ == "__main__":
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/krx_data"))
-    if not os.path.exists(data_dir):
-        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+    # 경로 설정
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(base_dir))  # 프로젝트 루트
 
-    if os.path.exists(data_dir):
-        engineer = FeatureEngineer(data_dir=data_dir)
-        # 처음 실행 시에는 생성 후 저장, 두 번째부터는 로드
-        X, y, _ = engineer.create_final_features(use_cache=True)
+    # 데이터 폴더 (사용자 환경에 맞게 수정)
+    # 예: 프로젝트루트/data
+    data_dir = os.path.join(project_root, "data")
 
-        if X is not None:
-            # 참고: cached_final_features.csv가 이미 생성되었으므로 여기서는 별도 저장 안해도 됨
-            print(" 작업 완료")
+    # 저장할 파일명
+    cache_file = os.path.join(data_dir, "cached_final_features.csv")
+
+    # 실행
+    process_and_save_data(data_dir, cache_file)
