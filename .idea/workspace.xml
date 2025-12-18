@@ -5,12 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
-      <change afterPath="$PROJECT_DIR$/ai_pipeline/trade/optimize_params.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/make_full_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/lgb_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/lgb_model.pkl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/meta_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/meta_model.pkl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/xgb_model.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/boosting_model/models/xgb_model.pkl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
