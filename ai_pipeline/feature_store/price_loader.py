@@ -25,7 +25,6 @@ class PriceFeatureLoader:
         df = pd.DataFrame(list(cursor))
 
         if df.empty:
-            print(f" [PriceLoader] {stock_code} 데이터 없음")
             return None
 
         # 2. 컬럼 매핑 & 전처리

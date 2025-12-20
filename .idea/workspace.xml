@@ -6,6 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="9d298bad-5aec-4fa9-b419-4ba0a504e1e2" name="변경" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/feature_store/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/feature_store/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ai_pipeline/feature_store/price_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/feature_store/price_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" beforeDir="false" afterPath="$PROJECT_DIR$/ai_pipeline/trade/run_realtime_trade.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -38,13 +40,14 @@
   <component name="ProjectLevelVcsManager">
     <ConfirmationsSetting value="2" id="Add" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.train_from_csv.executor&quot;: &quot;Run&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/97__auto__trading__system&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/data&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.train_from_csv.executor": "Run",
+    "git-widget-placeholder": "feat/97__auto__trading__system",
+    "last_opened_file_path": "/Users/ricky/Desktop/개인/코딩/FinalProject/MyEggBasket-AI/data",
+    "settings.editor.selected.configurable": "Settings.Markdown"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/data" />

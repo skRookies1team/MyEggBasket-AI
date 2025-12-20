@@ -32,7 +32,6 @@ class OnlineFeatureStore:
         # 1. 가격 및 TA 피처 (MongoDB + 계산)
         price_feats = self.price_loader.get_latest_technical_features(stock_code)
         if price_feats is None:
-            print(f" [FeatureStore] {stock_code}: 가격 데이터 없음")
             return None
 
         # 2. 감성 피처 (Elasticsearch)
