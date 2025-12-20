@@ -246,9 +246,8 @@ class PortfolioRebalancer:
 class AIAutoTrader:
     def __init__(self):
         print("\n" + "=" * 60)
-        print(" 🤖 [AI AutoTrader] 관제형 자동매매 시스템 (Hybrid Balance)")
-        print("    - 수정사항: 서버 잔고 리셋 버그 방어 로직 적용")
-        print("    - 로컬 잔고와 서버 잔고를 비교하여 비정상 급증 시 로컬 값 사용")
+        print("[AI AutoTrader] 관제형 자동매매 시스템 (Smart-Sync)")
+        print("    - 수정사항: 주문 실패는 반영하되, 3천만원 이상 급증(버그)은 차단")
         print("=" * 60)
 
         self.store = OnlineFeatureStore()
@@ -322,7 +321,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
 
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
@@ -341,33 +340,39 @@ class AIAutoTrader:
             return None
 
     def send_order(self, code, action, price, qty, profit_rate, reason):
-        # ... (생략: 기존과 동일) ...
-        # 주의: 이 함수 내부 로직은 그대로 두셔도 됩니다.
-        # 실제 예수금 차감 로직은 run_cycle에서 수행합니다.
-
-        # 다만, 기존 코드 흐름상 여기 내용을 복붙해드릴 순 없으니
-        # 아래 run_cycle 수정본을 참고해주세요.
         print(f"      📡 주문 전송... [{code} {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
+
         time.sleep(1.0)
 
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
         order_type = "BUY" if action == '매수' else "SELL"
+
         payload = {
-            "stockCode": code, "orderType": order_type,
-            "quantity": qty, "price": price, "triggerSource": "MANUAL"
+            "stockCode": code,
+            "orderType": order_type,
+            "quantity": qty,
+            "price": price,
+            "triggerSource": "MANUAL"
         }
+
         try:
             res = requests.post(url, headers=self.get_headers(), params=params, json=payload)
+
             if res.status_code == 200:
                 msg = res.json().get('msg1', '주문 완료')
-                print(f"    주문 성공! - {msg}")
+                print(f"     주문 성공! - {msg}")
                 self.save_trade_log(code, action, qty, price, profit_rate, reason)
-                if action == '매수': self.last_buy_times[code] = datetime.now()
+
+                if action == '매수':
+                    self.last_buy_times[code] = datetime.now()
+
                 if action == '전량매도':
                     self.last_sell_times[code] = datetime.now()
                     print(f"      🕒 [{code}] 매수 금지 쿨타임 시작 (24분)")
-                    if code in self.last_buy_times: del self.last_buy_times[code]
+                    if code in self.last_buy_times:
+                        del self.last_buy_times[code]
+
                 return True
             else:
                 print(f"      ❌ 주문 실패: {res.status_code} - {res.text}")
@@ -436,28 +441,29 @@ class AIAutoTrader:
         api_cash = d2_amt if (d2_amt is not None and d2_amt > 0) else total_amt
 
         # ------------------------------------------------------------------
-        # [Hybrid Logic] 서버 잔고 vs 로컬 잔고 검증
+        # [Hybrid Logic] 서버 잔고 vs 로컬 잔고 유연한 동기화
         # ------------------------------------------------------------------
 
-        # 최초 실행 시에는 API 값을 믿고 초기화
         if self.my_calculated_cash is None:
             self.my_calculated_cash = api_cash
             final_cash = api_cash
-            print(f"[Init] 초기 예수금 설정: {final_cash:,}원")
+            print(f" [Init] 초기 예수금 설정: {final_cash:,}원")
         else:
-            # 검증: API 잔고가 내 계산보다 20% 이상 많으면 '버그(리셋)'로 간주
-            # (단, 100만원 이하 소액일 때는 20% 차이날 수 있으므로 예외 처리)
             diff = api_cash - self.my_calculated_cash
-            is_abnormal_increase = (diff > 0) and (api_cash > self.my_calculated_cash * 1.2) and (
-                        self.my_calculated_cash > 1000000)
 
-            if is_abnormal_increase:
-                print(f" [Defense] 서버 예수금 리셋 감지! (API: {api_cash:,}원 vs My: {self.my_calculated_cash:,}원)")
-                print(f"    -> API 값을 무시하고, 내부 계산된 잔고({self.my_calculated_cash:,}원)를 사용합니다.")
+            # 1. API 잔고가 급격히 많은 경우 (버그 의심)
+            # 기준: 내 계산보다 3천만원 이상 많음 (주문 실패 허용 범위를 3천만원으로 설정)
+            BUG_THRESHOLD = 30000000  # 3,000만 원
+
+            if diff > BUG_THRESHOLD:
+                print(f" [Defense] 서버 예수금 급증 감지! (차이: {diff:,}원)")
+                print(f"    -> 초기화 버그로 간주하고 로컬 잔고({self.my_calculated_cash:,}원)를 사용합니다.")
                 final_cash = self.my_calculated_cash
+
+            # 2. 적당히 많거나(주문 실패), 적은 경우(정상 출금/손실) -> 동기화
             else:
-                # 정상 범위라면 API 값으로 동기화 (이자, 수수료 등의 미세 차이 보정)
-                # 단, API 값이 내 계산보다 작으면(정상 출금 등) API를 믿음
+                if diff > 0:
+                    print(f"️ [Sync] 예수금 차이({diff:,}원) 발생 -> 주문 실패/취소로 간주하여 API 값으로 동기화")
                 final_cash = api_cash
                 self.my_calculated_cash = api_cash  # 동기화
 
@@ -529,12 +535,7 @@ class AIAutoTrader:
                 amt_to_sell = abs(row['diff'])
                 qty_to_sell = int(amt_to_sell // price)
                 if qty_to_sell > 0:
-                    # 매도 성공 시에는 일단 API 반영을 기다림 (세금/수수료 계산 복잡하므로)
-                    # 단, 보수적으로 로컬 잔고는 안 늘려도 됨 (어차피 다음 턴에 API가 정상이면 동기화됨)
                     if self.send_order(code, action, price, qty_to_sell, profit_rate, row['reason']):
-                        # (선택) 매도 시 추정 현금 증가분을 로컬에 반영하고 싶다면:
-                        # estimated_income = qty_to_sell * price * 0.997 # 수수료 대충 반영
-                        # self.my_calculated_cash += int(estimated_income)
                         pass
 
             elif action == '매수':
@@ -550,7 +551,8 @@ class AIAutoTrader:
                             used_cash = (qty_to_buy * price)
                             final_cash -= used_cash
                             self.my_calculated_cash -= used_cash
-                            print(f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
+                            print(
+                                f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
                 else:
                     if safe_cash > 100000 and amt_to_buy > 0:
                         print(f"      ⚠️ 예수금 부족 ({code}): 필요 {amt_to_buy:,} > 가능 {safe_cash:,.0f}")
