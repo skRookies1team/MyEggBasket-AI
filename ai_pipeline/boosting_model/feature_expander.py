@@ -7,14 +7,16 @@ import re
 
 
 class FeatureExpander:
-    def __init__(self, data_dir=None):
+    def __init__(self, data_dir=None, max_days=30):
         """
         초기화 시 1년치 분봉 데이터를 로드하여
         1. 전일 종가 기준 등락률(prdy_ctrt)
         2. 분 단위 기술적 지표 (RSI, SMA 등)
         를 미리 계산해두고, 요청 시 병합(Merge)해줍니다.
+        max_days: 메모리에 유지할 최근 일수 (OOM 방지용)
         """
         self.ta_features_df = None
+        self.max_days = max_days
 
         # 데이터 폴더 경로 설정
         if data_dir is None:
@@ -133,7 +135,10 @@ class FeatureExpander:
                     'hist_BB_PctB', 'hist_MACD_Diff', 'hist_Vol_Ratio'
                 ]
 
-                results.append(df[cols_to_keep])
+                cutoff_date = df['timestamp'].max() - pd.Timedelta(days=self.max_days)
+                df_recent = df[df['timestamp'] >= cutoff_date]
+
+                results.append(df_recent[cols_to_keep])
 
             except Exception as e:
                 print(f" [Error] {os.path.basename(fpath)} 처리 중 오류: {e}")
