@@ -31,6 +31,28 @@ LOG_FILE_PATH = os.path.join(current_dir, "trade_record.csv")
 from ai_pipeline.feature_store import OnlineFeatureStore
 from ai_pipeline.boosting_model.train import StackingEnsemble
 
+STOCK_NAME_MAP = {
+    "005930": "삼성전자", "000660": "SK하이닉스", "207940": "삼성바이오로직스",
+    "005380": "현대차", "000270": "기아", "055550": "신한지주",
+    "105560": "KB금융", "068270": "셀트리온", "015760": "한국전력",
+    "028260": "삼성물산", "032830": "삼성생명", "012330": "현대모비스",
+    "035420": "NAVER", "006400": "삼성SDI", "086790": "하나금융지주",
+    "006405": "삼성SDI우", "000810": "삼성화재", "010140": "삼성중공업",
+    "064350": "현대로템", "138040": "메리츠금융지주", "051910": "LG화학",
+    "010130": "고려아연", "009540": "HD한국조선해양", "267260": "HD현대",
+    "066570": "LG전자", "066575": "LG전자우", "033780": "KT&G",
+    "003550": "LG", "003555": "LG우", "310200": "애니플러스",
+    "034020": "두산에너빌리티", "012450": "한화에어로스페이스", "009830": "한화솔루션",
+    "011070": "LG이노텍", "071050": "한국금융지주", "081660": "휠라홀딩스",
+    "046890": "서울반도체", "323410": "카카오뱅크", "017670": "SK텔레콤",
+    "010620": "현대미포조선", "047050": "포스코인터내셔널", "009155": "삼성전기우",
+    "275630": "에이치시티", "009835": "한화솔루션우", "001440": "대한전선",
+    "138930": "BNK금융지주", "175330": "JB금융지주", "051900": "LG생활건강",
+    "005490": "POSCO홀딩스", "034220": "LG디스플레이"
+}
+
+def get_stock_name(code):
+    return STOCK_NAME_MAP.get(code, code) # 없으면 코드로 반환
 
 # -----------------------------------------------------------
 # 3. 포트폴리오 리밸런서 (신중한 매매: Threshold 상향 + Buy Cooldown + Top5)
@@ -136,6 +158,7 @@ class PortfolioRebalancer:
 
         for _, row in candidates.iterrows():
             code = row['code']
+            name = row.get('name', code)
             ai_score = row['ai_score']
             target_ratio = row['target_ratio']
 
@@ -218,6 +241,7 @@ class PortfolioRebalancer:
             if final_action != '유지':
                 rebalancing_plan.append({
                     'code': code,
+                    'name': name,
                     'ai_score': ai_score,
                     'current_amt': current_amt,
                     'target_amt': target_amt,
@@ -340,7 +364,8 @@ class AIAutoTrader:
             return None
 
     def send_order(self, code, action, price, qty, profit_rate, reason):
-        print(f"      📡 주문 전송... [{code} {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
+        name = get_stock_name(code)
+        print(f"      📡 주문 전송... [{name}({code}) {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
 
         time.sleep(1.0)
 
@@ -398,6 +423,7 @@ class AIAutoTrader:
 
             result = {
                 'code': code,
+                'name': get_stock_name(code),
                 'ai_score': round(score, 2),
                 'current_price': current_price
             }
@@ -512,7 +538,7 @@ class AIAutoTrader:
             return
 
         print("\n [리밸런싱 계획]")
-        print(plan_df[['code', 'ai_score', 'action', 'diff', 'profit_rate', 'reason']].to_string(index=False))
+        print(plan_df[['code', 'name', 'ai_score', 'action', 'diff', 'profit_rate', 'reason']].to_string(index=False))
 
         # 주문 실행
         for _, row in plan_df.iterrows():
@@ -520,6 +546,7 @@ class AIAutoTrader:
             if action == '유지': continue
 
             code = row['code']
+            name = row.get('name', code)
             price = 0
             found = [x for x in ai_results if x['code'] == code]
             if found: price = found[0]['current_price']
