@@ -100,16 +100,20 @@ class StackingEnsemble:
 
         self.is_trained = True
 
-        # [수정 3] 최적 임계값(Threshold) 찾기
+
+        # 최적 임계값(Threshold) 찾기
         if X_val is not None and y_val is not None:
             print(" 4) 최적 임계값(Threshold) 튜닝 중...")
             val_probs = self.predict_proba(X_val)[:, 1]
-            thresholds = np.arange(0.3, 0.8, 0.01)  # 0.3 ~ 0.8 사이 탐색
+            thresholds = np.arange(0.3, 0.8, 0.01)
             f1_scores = [f1_score(y_val, (val_probs >= t).astype(int)) for t in thresholds]
 
             best_idx = np.argmax(f1_scores)
             self.best_threshold = thresholds[best_idx]
-            print(f"    -> Best Threshold: {self.best_threshold:.2f} (Max F1: {f1_scores[best_idx]:.4f})")
+            print(f"    -> Best Threshold: {self.best_threshold:.2f}")
+        else:
+            self.best_threshold = 0.5  # 명시적 기본값
+            print(" [Info] 검증 데이터 없음. 기본 Threshold(0.5) 사용")
 
         print(" 학습 완료!")
 
@@ -146,7 +150,7 @@ class StackingEnsemble:
         # 추가 정보 저장 (Threshold 포함)
         meta_info = {'feature_names': self.feature_names, 'best_threshold': self.best_threshold}
         with open(os.path.join(save_dir, 'model_meta.json'), 'w', encoding='utf-8') as f:
-            json.dump(meta_info, f, indent=2)
+            json.dump(meta_info, f, ensure_ascii=False, indent=2)
 
         print(f"\n [Save] 모델 및 메타정보 저장 완료: {save_dir}")
 

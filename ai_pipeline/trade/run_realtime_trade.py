@@ -30,6 +30,7 @@ LOG_FILE_PATH = os.path.join(current_dir, "trade_record.csv")
 # -----------------------------------------------------------
 from ai_pipeline.feature_store import OnlineFeatureStore
 from ai_pipeline.boosting_model.train import StackingEnsemble
+from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
 STOCK_NAME_MAP = {
     "005930": "삼성전자", "000660": "SK하이닉스", "207940": "삼성바이오로직스",
@@ -194,7 +195,7 @@ class PortfolioRebalancer:
             if profit_rate <= STOP_LOSS_RATE:
                 # 40점 미만이면 전량, 아니면 축소 (기존 로직 유지)
                 final_action = '전량매도' if ai_score < 40 else '비중축소'
-                reason = f"📉 손절매(수익률 {profit_rate:.2f}%)"
+                reason = f" 손절매(수익률 {profit_rate:.2f}%)"
 
             # [CASE 2] 적극적 익절
             elif profit_rate >= PROFIT_TAKE_RATE:
@@ -207,10 +208,10 @@ class PortfolioRebalancer:
                     # 90점 이상 초강세 -> 불타기 or 유지
                     if base_action == '매수':
                         final_action = '매수'
-                        reason = f"🚀 급등({profit_rate:.2f}%) + AI강력({ai_score}점)"
+                        reason = f" 급등({profit_rate:.2f}%) + AI강력({ai_score}점)"
                     else:
                         final_action = '유지'
-                        reason = f"💰 익절권이나 상승세 유지({ai_score}점)"
+                        reason = f" 익절권이나 상승세 유지({ai_score}점)"
 
             # [CASE 3] AI 점수 기반 확정 매도
             elif ai_score < 40:  # 기존 < 40 유지 (39점 포함 여부는 기존 로직 존중)
@@ -278,6 +279,13 @@ class AIAutoTrader:
         # [참고] 앞서 수정한 '신중한 매매' 로직이 적용된 Rebalancer라고 가정합니다.
         self.rebalancer = PortfolioRebalancer(risk_aversion='neutral')
 
+        # 밸류체인 전략 초기화
+        if ValueChainStrategy:
+            self.vc_strategy = ValueChainStrategy()
+            print(" [Init] 밸류체인 전략 모듈 로드 완료")
+        else:
+            self.vc_strategy = None
+
         self.model = StackingEnsemble()
         model_path = os.path.join(project_root, "ai_pipeline/boosting_model/models")
         try:
@@ -321,7 +329,7 @@ class AIAutoTrader:
                 writer.writerow([timestamp, code, action, qty, price, p_rate_str, total_amt, reason])
             print(f"     로그 저장 완료 (수익률: {p_rate_str})")
         except Exception as e:
-            print(f"      ⚠️ 로그 저장 실패: {e}")
+            print(f"       로그 저장 실패: {e}")
 
     def login(self):
         url = f"{BACKEND_API_URL}/auth/login"
@@ -345,7 +353,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
 
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
@@ -353,14 +361,14 @@ class AIAutoTrader:
             if resp.status_code == 200:
                 return resp.json()
             elif resp.status_code == 401:
-                print(f"      ⛔ [Balance] 401 인증 실패. 재로그인 시도...")
+                print(f"       [Balance] 401 인증 실패. 재로그인 시도...")
                 self.login()
                 return None
             else:
-                print(f"      ⚠️ [Balance] 조회 실패: {resp.status_code} - {resp.text}")
+                print(f"       [Balance] 조회 실패: {resp.status_code} - {resp.text}")
                 return None
         except Exception as e:
-            print(f"      🚫 [Balance] 요청 중 예외 발생: {e}")
+            print(f"       [Balance] 요청 중 예외 발생: {e}")
             return None
 
     def send_order(self, code, action, price, qty, profit_rate, reason):
@@ -370,7 +378,7 @@ class AIAutoTrader:
         time.sleep(1.0)
 
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
         order_type = "BUY" if action == '매수' else "SELL"
 
         payload = {
@@ -400,10 +408,10 @@ class AIAutoTrader:
 
                 return True
             else:
-                print(f"      ❌ 주문 실패: {res.status_code} - {res.text}")
+                print(f"       주문 실패: {res.status_code} - {res.text}")
                 return False
         except Exception as e:
-            print(f"      🚫 주문 중 에러 발생: {e}")
+            print(f"       주문 중 에러 발생: {e}")
             return False
 
     def analyze_stock(self, code):
@@ -432,11 +440,11 @@ class AIAutoTrader:
             return result
 
         except Exception as e:
-            print(f"      ⚠️ [{code}] 분석 중 오류: {e}")
+            print(f"       [{code}] 분석 중 오류: {e}")
             return None
 
     def run_cycle(self):
-        print(f"\n 🕒 [Cycle] {datetime.now().strftime('%H:%M:%S')} 리밸런싱 시작")
+        print(f"\n  [Cycle] {datetime.now().strftime('%H:%M:%S')} 리밸런싱 시작")
 
         if not self.auth_token:
             if not self.login(): return
@@ -516,6 +524,33 @@ class AIAutoTrader:
         if not ai_results:
             print(" [Info] 분석 가능한 종목 데이터가 없습니다.")
             return
+        
+        # 밸류체인 확장 (대장주 발견 시 연관 종목 추가 분석) 
+        # 80점 이상인 종목을 '대장주'로 간주
+
+        high_scorers = [res for res in ai_results if res['ai_score'] >= 80]
+        
+        expanded_codes = set()
+        if self.vc_strategy and self.vc_strategy.vc_analyzer:
+            for item in high_scorers:
+                main_code = item['code']
+                # ValueChainAnalyzer를 통해 연관 종목 검색
+                related = self.vc_strategy.vc_analyzer.find_similar_stocks(main_code)
+                for rel in related:
+                    r_code = rel['code']
+                    # 이미 분석한 종목이거나 보유중이면 패스
+                    if r_code not in universe and r_code not in expanded_codes:
+                        expanded_codes.add(r_code)
+
+        if expanded_codes:
+            print(f"  [ValueChain] 연관 유망 종목 {len(expanded_codes)}개 추가 분석 진행...")
+            for r_code in expanded_codes:
+                data = self.analyze_stock(r_code)
+                if data:
+                    ai_results.append(data)
+                    # 관계사 로그 출력
+                    print(f"    -> 밸류체인 추가: {r_code} ({data['ai_score']}점)")
+
 
         ai_scores_df = pd.DataFrame(ai_results)
         total_stock_val = sum([h['amt'] for h in my_holdings_detail.values()])
@@ -553,7 +588,7 @@ class AIAutoTrader:
             if price == 0 and code in my_holdings_detail:
                 price = int(my_holdings_detail[code]['current_price'])
             if price == 0:
-                print(f"      ⚠️ [{code}] 현재가를 알 수 없어 주문 생략")
+                print(f"       [{code}] 현재가를 알 수 없어 주문 생략")
                 continue
 
             profit_rate = row.get('profit_rate', 0.0)
@@ -582,7 +617,7 @@ class AIAutoTrader:
                                 f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
                 else:
                     if safe_cash > 100000 and amt_to_buy > 0:
-                        print(f"      ⚠️ 예수금 부족 ({code}): 필요 {amt_to_buy:,} > 가능 {safe_cash:,.0f}")
+                        print(f"       예수금 부족 ({code}): 필요 {amt_to_buy:,} > 가능 {safe_cash:,.0f}")
 
         print(" [Cycle] 종료")
 
