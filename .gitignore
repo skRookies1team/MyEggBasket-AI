@@ -3,8 +3,18 @@
 .env
 
 best_params.json
-models/
 __pycache__/
 *.pyc
 *.pdf
 /data/reports/
+
+/ai_pipeline/boosting_model/__pycache__
+/ai_pipeline/config/__pycache__
+/ai_pipeline/news_source/__pycache__
+/ai_pipeline/mapping/__pycache__
+/ai_pipeline/nlp/__pycache__
+/ai_pipeline/graph_build/__pycache__
+/ai_pipeline/boosting_model/__pycache__
+k8s
+.yaml
+*.csv

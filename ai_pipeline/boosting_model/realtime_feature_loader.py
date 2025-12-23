@@ -1,202 +1,206 @@
 import pandas as pd
 import numpy as np
-from datetime import datetime
 import os
+
 
 class RealtimeFeatureLoader:
     """
-    실시간 체결 정보 CSV를 로드하고 머신러닝 피쳐로 변환
+    1년치 분봉 데이터(CSV)를 로드하여 머신러닝 피쳐로 변환
+    - 초 단위 데이터 처리 로직 삭제됨
+    - Date, Time, Close, Volume 형식의 분봉 데이터 전용
     """
-    
-    # 필수 컬럼 정의 (CSV 파일에 반드시 있어야 하는 컬럼들)
-    REQUIRED_COLUMNS = [
-        'timestamp', 'stock_code', 'stck_cntg_hour', 'stck_prpr',
-        'prdy_vrss', 'prdy_ctrt', 'acml_tr_pbmn',
-        'seln_cntg_csnu', 'shnu_cntg_csnu', 'askp1', 'bidp1',
-        'total_askp_rsqn', 'total_bidp_rsqn'
-    ]
-    
+
     def __init__(self, csv_file_path):
         self.csv_path = csv_file_path
-        
         if not os.path.exists(csv_file_path):
             raise FileNotFoundError(f" CSV 파일을 찾을 수 없습니다: {csv_file_path}")
-        
-        print(f" CSV 파일 경로 확인 완료: {csv_file_path}")
-    
+
     def load_and_preprocess(self):
         """CSV 파일 로드 및 전처리"""
-        print("\n 체결 정보 CSV 로딩 중...")
-        
-        # CSV 로드
+
+        # 1. CSV 로드
         try:
             df = pd.read_csv(self.csv_path, sep=',', encoding='utf-8')
         except UnicodeDecodeError:
             df = pd.read_csv(self.csv_path, sep=',', encoding='cp949')
-        
-        # 컬럼명 정리 (공백/특수문자 제거, 소문자 변환)
+
+        # 2. 컬럼명 표준화 (소문자 변환 및 공백 제거)
         df.columns = df.columns.str.strip().str.lower()
-        
-        # 컬럼명 표준화 매핑
-        column_mapping = {
-            'stck_shrn_iscd': 'stock_code',
-            'code': 'stock_code',
-            '종목코드': 'stock_code'
-            # 실제 CSV의 컬럼명을 그대로 사용 (이미 표준)
-        }
-        
-        df = df.rename(columns=column_mapping)
-        
-        # stock_code 컬럼 확인 및 처리
-        if 'stock_code' not in df.columns:
-            # 종목코드 컬럼 찾기
-            for possible_name in ['stck_shrn_iscd', '종목코드', 'code']:
-                if possible_name in df.columns:
-                    df = df.rename(columns={possible_name: 'stock_code'})
-                    break
-        
-        # 종목 코드 처리 (앞에 0 채우기 - 6자리로 통일)
-        df['stock_code'] = df['stock_code'].astype(str).str.zfill(6)
-        
-        # 필수 컬럼 체크
-        missing_cols = []
-        for col in self.REQUIRED_COLUMNS:
-            if col not in df.columns:
-                missing_cols.append(col)
-        
-        if missing_cols:
-            print(f" 필수 컬럼 누락: {missing_cols}")
-            print(f"   실제 컬럼: {df.columns.tolist()}")
-            raise KeyError(f"필수 컬럼이 없습니다: {missing_cols}")
-        
-        # timestamp를 datetime으로 변환
+
+        # 원본 컬럼명 매핑 (Date, Time 등 대소문자 섞여있을 경우 대비)
+        # 소문자로 변환된 컬럼명을 기준으로 처리
+
+        # 필수 컬럼 체크 (date, time, close)
+        if not all(col in df.columns for col in ['date', 'time', 'close']):
+            # 분봉 데이터 형식이 아니면 빈 DF 반환
+            return pd.DataFrame()
+
+        # 3. 종목코드 추출 (파일명: 000270_1Year.csv -> 000270)
+        filename = os.path.basename(self.csv_path)
+        stock_code = filename.split('_')[0]
+        if stock_code.isdigit():
+            df['stock_code'] = stock_code.zfill(6)
+        else:
+            return pd.DataFrame()
+
+        # 4. Timestamp 생성 (Date + Time)
+        # Date: 20241210, Time: 141500 (HHMMSS)
         try:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-        except:
-            print(" timestamp 변환 실패. 기본 형식으로 진행합니다.")
-        
-        # 정렬 (종목코드, 시간순)
+            df['date_str'] = df['date'].astype(str)
+            df['time_str'] = df['time'].astype(str).str.zfill(6)
+
+            df['timestamp'] = pd.to_datetime(
+                df['date_str'] + df['time_str'],
+                format='%Y%m%d%H%M%S',
+                errors='coerce'
+            )
+        except Exception as e:
+            print(f" [Error] 날짜 변환 실패: {e}")
+            return pd.DataFrame()
+
+        # 5. 컬럼 매핑 및 정리
+        rename_map = {
+            'close': 'stck_prpr',  # 현재가
+            'volume': 'acml_vol'  # 거래량
+        }
+        df = df.rename(columns=rename_map)
+
+        # 거래대금 추정 (가격 * 거래량)
+        df['acml_tr_pbmn'] = df['stck_prpr'] * df['acml_vol']
+
+        # 필수 컬럼 수치형 변환
+        for col in ['stck_prpr', 'acml_tr_pbmn']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+        # 결측 및 정렬
+        df = df.dropna(subset=['timestamp'])
         df = df.sort_values(['stock_code', 'timestamp']).reset_index(drop=True)
-        
-        print(f" 전처리 완료")
-        print(f"   종목 수: {df['stock_code'].nunique()}개")
-        print(f"   데이터 기간: {df['timestamp'].min()} ~ {df['timestamp'].max()}")
-        
+
+        # 필요한 컬럼만 선택
+        keep_cols = ['timestamp', 'stock_code', 'stck_prpr', 'acml_tr_pbmn', 'prdy_ctrt']
+        df = df[[c for c in keep_cols if c in df.columns]]
+
         return df
-    
+
     def create_technical_features(self, df):
         """기술적 지표 생성"""
-        print("\n 기술적 지표 계산 중...")
-        
+        if df.empty:
+            return pd.DataFrame()
+
         result_dfs = []
-        
+        df = df.set_index('timestamp')
+
         for stock_code, group in df.groupby('stock_code'):
-            group = group.copy()
-            
-            # 1. 가격 변화율 (최근 N틱 대비)
-            group['price_change_1'] = group['stck_prpr'].pct_change(1)
-            group['price_change_5'] = group['stck_prpr'].pct_change(5)
-            group['price_change_10'] = group['stck_prpr'].pct_change(10)
-            
+            # 1분봉 리샘플링 (빈 시간 채우기 & 분 단위 정렬 보장)
+            numeric_cols = group.select_dtypes(include=[np.number]).columns
+            resampled = group[numeric_cols].resample('1min').last().ffill()
+            resampled['stock_code'] = stock_code
+
+            # --- 지표 계산 ---
+            # 1. 가격 변화율
+            resampled['price_change_1'] = resampled['stck_prpr'].pct_change(1).fillna(0)
+            resampled['price_change_5'] = resampled['stck_prpr'].pct_change(5).fillna(0)
+            resampled['price_change_10'] = resampled['stck_prpr'].pct_change(10).fillna(0)
+
             # 2. 이동평균
-            group['ma_5'] = group['stck_prpr'].rolling(window=5, min_periods=1).mean()
-            group['ma_10'] = group['stck_prpr'].rolling(window=10, min_periods=1).mean()
-            group['ma_20'] = group['stck_prpr'].rolling(window=20, min_periods=1).mean()
-            
-            # 3. 가격 위치 (MA 대비)
-            group['price_vs_ma5'] = (group['stck_prpr'] - group['ma_5']) / (group['ma_5'] + 1e-8)
-            group['price_vs_ma20'] = (group['stck_prpr'] - group['ma_20']) / (group['ma_20'] + 1e-8)
-            
-            
-            # 5. 거래대금 특징
-            group['tr_amount_change'] = group['acml_tr_pbmn'].pct_change(1)
-            
-            # 6. 호가 스프레드
-            group['spread'] = (group['askp1'] - group['bidp1']) / (group['stck_prpr'] + 1e-8)
-            group['spread_pct'] = group['spread'] * 100
-            
-            # 7. 매수/매도 압력
-            total_orders = group['total_askp_rsqn'] + group['total_bidp_rsqn'] + 1e-8
-            group['buy_pressure'] = group['total_bidp_rsqn'] / total_orders
-            
-            # 8. 체결 강도 (매수 vs 매도 체결량)
-            total_cntg = group['seln_cntg_csnu'] + group['shnu_cntg_csnu'] + 1e-8
-            group['buy_strength'] = group['shnu_cntg_csnu'] / total_cntg
-            
-            # 9. 변동성 (최근 N틱의 표준편차)
-            group['volatility_5'] = group['price_change_1'].rolling(window=5, min_periods=1).std()
-            group['volatility_10'] = group['price_change_1'].rolling(window=10, min_periods=1).std()
-            
-            # 10. 가격 모멘텀
-            group['momentum_5'] = group['stck_prpr'] - group['stck_prpr'].shift(5)
-            group['momentum_10'] = group['stck_prpr'] - group['stck_prpr'].shift(10)
-            
-            # 11. 타겟 생성 (다음 5틱 후 가격 상승 여부)
-            group['future_price_5'] = group['stck_prpr'].shift(-5)
-            group['target'] = (group['future_price_5'] > group['stck_prpr']).astype(int)
-            
-            result_dfs.append(group)
-        
+            resampled['ma_5'] = resampled['stck_prpr'].rolling(window=5).mean()
+            resampled['ma_20'] = resampled['stck_prpr'].rolling(window=20).mean()
+            resampled['ma_60'] = resampled['stck_prpr'].rolling(window=60).mean()
+
+            # 3. 이격도
+            resampled['price_vs_ma5'] = (resampled['stck_prpr'] - resampled['ma_5']) / (resampled['ma_5'] + 1e-8)
+            resampled['price_vs_ma20'] = (resampled['stck_prpr'] - resampled['ma_20']) / (resampled['ma_20'] + 1e-8)
+            resampled['price_vs_ma60'] = (resampled['stck_prpr'] - resampled['ma_60']) / (resampled['ma_60'] + 1e-8)
+
+            # 4. 거래대금 변화율
+            if 'acml_tr_pbmn' in resampled.columns:
+                resampled['tr_amount_change'] = resampled['acml_tr_pbmn'].pct_change(1).fillna(0)
+            else:
+                resampled['tr_amount_change'] = 0.0
+
+            # 5. 변동성
+            resampled['volatility_5'] = resampled['price_change_1'].rolling(window=5).std().fillna(0)
+            resampled['volatility_10'] = resampled['price_change_1'].rolling(window=10).std().fillna(0)
+
+            # 6. 타겟 생성 (5분 뒤 가격 예측)
+            LOOK_AHEAD = 5
+            THRESHOLD = 0.003
+            resampled['future_price'] = resampled['stck_prpr'].shift(-LOOK_AHEAD)
+            resampled['return'] = (resampled['future_price'] - resampled['stck_prpr']) / (resampled['stck_prpr'] + 1e-8)
+            resampled['target'] = (resampled['return'] >= THRESHOLD).astype(int)
+
+            if 'prdy_ctrt' not in resampled.columns:
+                resampled['prdy_ctrt'] = 0.0
+
+            #  [핵심 수정] Target 생성 로직 완화
+            LOOK_AHEAD = 5  # 5분 뒤 가격
+            THRESHOLD = 0.001  # 0.1%로 낮춤 (기존 0.3%)
+
+            future_price = resampled['stck_prpr'].shift(-LOOK_AHEAD)
+            ret = (future_price - resampled['stck_prpr']) / (resampled['stck_prpr'] + 1e-8)
+
+            #  [추가] 타겟 생성 전 데이터 검증
+            valid_ret = ret.dropna()
+            if len(valid_ret) > 0:
+                positive_count = (valid_ret > THRESHOLD).sum()
+                print(
+                    f"   [{stock_code}] Target 후보: {len(valid_ret)}개, 상승: {positive_count}개 ({positive_count / len(valid_ret) * 100:.1f}%)")
+
+            resampled['target'] = (ret > THRESHOLD).astype(int)
+
+            result_dfs.append(resampled.reset_index())
+
+        if not result_dfs:
+            return pd.DataFrame()
+
         final_df = pd.concat(result_dfs, ignore_index=True)
-        print(f" 기술적 지표 추가 완료")
-        
+
+        #  [최종 검증] Target 분포 출력
+        total_targets = final_df['target'].dropna()
+        if len(total_targets) > 0:
+            up_count = (total_targets == 1).sum()
+            print(
+                f"\n [Target 생성 완료] 전체: {len(total_targets)}개, 상승(1): {up_count}개 ({up_count / len(total_targets) * 100:.2f}%)")
+
         return final_df
-    
+
     def prepare_features(self):
         """최종 피쳐 데이터 준비"""
-        # 1. 로드 및 전처리
+        # 1. 로드
         df = self.load_and_preprocess()
-        
-        # 2. 기술적 지표 추가
-        df = self.create_technical_features(df)
-        
-        # 3. NaN 제거
-        original_len = len(df)
-        df = df.dropna()
-        
-        if len(df) == 0:
-            print(" 유효한 데이터가 없습니다.")
+        if df is None or df.empty:
             return None, None, None
-        
-        print(f"\n NaN 제거: {original_len:,} → {len(df):,} ({len(df)/original_len*100:.1f}%)")
-        
-        # 4. 피쳐 선택 (GCN 임베딩은 나중에 merge)
+
+        # 2. 지표 생성
+        df = self.create_technical_features(df)
+        if df.empty:
+            return None, None, None
+
+        # 3. 결측치 제거
+        df = df.dropna()
+        if len(df) == 0:
+            return None, None, None
+
+        # 4. 피쳐 선택
+        # 학습에 필요한 컬럼 + 식별자(timestamp, stock_code) 포함
         feature_cols = [
-            'prdy_ctrt',              # 전일대비율
+            'timestamp',  # 시계열 매핑용 필수
+            'prdy_ctrt',
             'price_change_1', 'price_change_5', 'price_change_10',
-            'price_vs_ma5', 'price_vs_ma20',
-            'tr_amount_change',       # 거래대금 변화율
-            'spread', 'spread_pct',
-            'buy_pressure',
-            'buy_strength',           # 체결 강도
-            'volatility_5', 'volatility_10',
-            'momentum_5', 'momentum_10'
+            'price_vs_ma5', 'price_vs_ma20', 'price_vs_ma60',
+            'tr_amount_change',
+            'volatility_5', 'volatility_10'
         ]
-        
-        X = df[feature_cols].copy()
+
+        valid_cols = [c for c in feature_cols if c in df.columns]
+
+        # 없는 수치형 컬럼 0.0 처리 (timestamp 제외)
+        for c in feature_cols:
+            if c not in df.columns and c != 'timestamp':
+                df[c] = 0.0
+
+        X = df[valid_cols].copy()
         y = df['target'].copy()
         stock_codes = df['stock_code'].copy()
-        
-        print(f"\n 최종 데이터 준비 완료!")
-        print(f"   샘플 수: {len(X):,}")
-        print(f"   피쳐 수: {len(feature_cols)}")
-        print(f"   상승(1): {(y==1).sum():,}개 ({(y==1).sum()/len(y)*100:.1f}%)")
-        print(f"   하락(0): {(y==0).sum():,}개 ({(y==0).sum()/len(y)*100:.1f}%)")
-        
+
         return X, y, stock_codes
-
-
-# 실행 테스트
-if __name__ == "__main__":
-    csv_path = r"C:\Users\user\project\MyEggBasket-AI\20251120.csv"
-    
-    loader = RealtimeFeatureLoader(csv_path)
-    X, y, stock_codes = loader.prepare_features()
-    
-    if X is not None:
-        print("\n[피쳐 샘플]")
-        print(X.head())
-        print(f"\n[타겟 분포]")
-        print(y.value_counts())
-        print(f"\n[종목코드 샘플]")
-        print(stock_codes.head())

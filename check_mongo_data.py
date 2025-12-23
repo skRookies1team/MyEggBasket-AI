@@ -11,7 +11,7 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "stock_data")
 MONGO_COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME", "reports")
 
 def check_data():
-    print(f"🔍 MongoDB 접속 중... ({MONGO_URI})")
+    print(f" MongoDB 접속 중... ({MONGO_URI})")
     
     try:
         client = pymongo.MongoClient(MONGO_URI)
@@ -20,11 +20,11 @@ def check_data():
         
         # 1. 전체 개수 확인
         total_count = collection.count_documents({})
-        print(f"\n📊 총 저장된 리포트 개수: {total_count}개")
+        print(f"\n 총 저장된 리포트 개수: {total_count}개")
         print("="*60)
 
         if total_count == 0:
-            print("❌ 저장된 데이터가 없습니다.")
+            print(" 저장된 데이터가 없습니다.")
             return
 
         # 2. 최신 데이터 5개만 뽑아서 내용 확인
@@ -41,13 +41,13 @@ def check_data():
         # 3. 첫 번째 데이터의 본문(Content) 앞부분만 살짝 보기
         sample = collection.find_one()
         if sample:
-            print("\n📝 [샘플] 첫 번째 리포트 본문 미리보기 (앞 200자):")
+            print("\n [샘플] 첫 번째 리포트 본문 미리보기 (앞 200자):")
             print("-" * 60)
             print(sample.get('content', '')[:200])
             print("..." + "\n" + "-" * 60)
 
     except Exception as e:
-        print(f"❌ 에러 발생: {e}")
+        print(f" 에러 발생: {e}")
     finally:
         client.close()
 

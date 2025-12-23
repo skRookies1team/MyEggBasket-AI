@@ -1,10 +1,11 @@
 from elasticsearch import Elasticsearch, helpers
 import pandas as pd
 import math
+from ai_pipeline.config.settings import ES_HOST
 
 class ElasticStorage:
-    def __init__(self, host="http://localhost:9200"):
-        self.es = Elasticsearch(host)
+    def __init__(self):
+        self.es = Elasticsearch(ES_HOST)
         
         # 집계된 데이터가 들어갈 인덱스 이름
         self.feature_index = "stock_features_v1"
@@ -30,14 +31,14 @@ class ElasticStorage:
             }
         }
         self.es.indices.create(index=self.feature_index, body=mapping)
-        print(f"✅ Feature 인덱스 생성 완료: {self.feature_index}")
+        print(f" Feature 인덱스 생성 완료: {self.feature_index}")
 
     def save_features(self, df_features):
         """
         sentiment_aggregator의 결과(DataFrame)를 저장
         """
         if df_features.empty:
-            print("⚠️ 저장할 집계 데이터가 없습니다.")
+            print(" 저장할 집계 데이터가 없습니다.")
             return
 
         actions = []
@@ -70,14 +71,14 @@ class ElasticStorage:
             success, errors = helpers.bulk(self.es, actions, raise_on_error=False)
             
             if errors:
-                print(f"⚠️ {len(errors)}건 저장 실패!")
+                print(f" {len(errors)}건 저장 실패!")
                 # 첫 번째 에러 원인 출력 (디버깅용)
-                print(f"🔍 첫 번째 에러 원인: {errors[0]}")
+                print(f" 첫 번째 에러 원인: {errors[0]}")
             
-            print(f"🚀 가공된 피처 {success}건을 '{self.feature_index}'에 저장했습니다.")
+            print(f" 가공된 피처 {success}건을 '{self.feature_index}'에 저장했습니다.")
             
         except Exception as e:
-            print(f"❌ 저장 시스템 에러: {e}")
+            print(f" 저장 시스템 에러: {e}")
 
 if __name__ == "__main__":
     storage = ElasticStorage()

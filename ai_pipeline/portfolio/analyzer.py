@@ -214,7 +214,7 @@ class PortfolioAnalyzer:
             df = df[~df['code'].isin(exclude_codes)]
 
         # ----------------------------------------------------
-        # 🎯 성향별 필터링 로직 (여기가 핵심!)
+        #  성향별 필터링 로직 (여기가 핵심!)
         # ----------------------------------------------------
         
         # 공통 조건: 일단 AI가 오른다고 한 종목이어야 함 (60점 이상)
@@ -222,27 +222,27 @@ class PortfolioAnalyzer:
         if candidates.empty: candidates = df.copy()
 
         # ----------------------------------------------------
-        # 🎯 성향별 필터링 로직
+        #  성향별 필터링 로직
         # ----------------------------------------------------
-        if style == 'conservative': # 🛡️ 안정형
+        if style == 'conservative': #  안정형
             # 변동성 하위 50% & AI 점수순 정렬
             threshold = candidates['volatility'].quantile(0.5)
             recs = candidates[candidates['volatility'] <= threshold]
             recs = recs.sort_values('ai_score', ascending=False)
             reason_template = "저변동성 안정적 흐름"
 
-        elif style == 'aggressive': # 🚀 공격형
+        elif style == 'aggressive': #  공격형
             # 변동성 무시, AI 점수 최우선
             recs = candidates.sort_values('ai_score', ascending=False)
             reason_template = "AI 강력 매수 시그널"
 
-        elif style == 'momentum': # 🔥 불기둥형
+        elif style == 'momentum': #  불기둥형
             # 상승세(Momentum > 0)인 종목 중 모멘텀 강한 순
             recs = candidates[candidates['momentum'] > 0]
             recs = recs.sort_values('momentum', ascending=False)
             reason_template = "강력한 상승 추세 진입"
 
-        elif style == 'reversal': # 💎 줍줍형
+        elif style == 'reversal': #  줍줍형
             # 최근 가격 하락(Change < 0)했으나 AI 점수 높은 것
             recs = candidates[candidates['price_change'] < 0]
             recs = recs.sort_values('ai_score', ascending=False)

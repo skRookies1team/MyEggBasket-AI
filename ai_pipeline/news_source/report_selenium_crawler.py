@@ -28,7 +28,7 @@ TARGET_CODES = [code.strip() for code in TARGET_CODES]
 
 def load_stock_list():
     if not os.path.exists(DATA_PATH):
-        print(f"❌ 데이터 파일이 없습니다: {DATA_PATH}")
+        print(f" 데이터 파일이 없습니다: {DATA_PATH}")
         return []
     try:
         try:
@@ -37,10 +37,10 @@ def load_stock_list():
             df = pd.read_csv(DATA_PATH, encoding='utf-8', dtype=str)
         
         filtered_df = df[df['단축코드'].isin(TARGET_CODES)]
-        print(f"📊 타겟 종목 {len(filtered_df)}개 로드 완료.")
+        print(f" 타겟 종목 {len(filtered_df)}개 로드 완료.")
         return filtered_df[['한글 종목명', '단축코드']].values.tolist()
     except Exception as e:
-        print(f"❌ CSV 로드 실패: {e}")
+        print(f" CSV 로드 실패: {e}")
         return []
 
 def clean_filename(text):
@@ -64,7 +64,7 @@ def download_pdf(url, filename):
                 f.write(response.content)
             return True
     except Exception as e:
-        print(f"   ⚠️ 다운로드 실패: {e}")
+        print(f"    다운로드 실패: {e}")
     return False
 
 def get_driver():
@@ -84,8 +84,8 @@ def crawl_reports(years=2):
 
     # 수집 제한 날짜 (오늘 - N년)
     cutoff_date = datetime.now() - timedelta(days=365 * years)
-    print(f"📅 기준일: {cutoff_date.strftime('%Y-%m-%d')} 이후 리포트만 수집")
-    print(f"🚀 [재접속 기능 포함] {len(stocks)}개 종목 수집 시작...")
+    print(f" 기준일: {cutoff_date.strftime('%Y-%m-%d')} 이후 리포트만 수집")
+    print(f" [재접속 기능 포함] {len(stocks)}개 종목 수집 시작...")
     
     driver = get_driver() # 브라우저 켜기
     total_download = 0
@@ -104,7 +104,7 @@ def crawl_reports(years=2):
             # 테스트로 현재 윈도우 핸들을 가져와봄 (에러나면 죽은 것)
             driver.current_window_handle
         except:
-            print("   🔄 브라우저 재시작 중...")
+            print("    브라우저 재시작 중...")
             try:
                 driver.quit()
             except:
@@ -133,7 +133,7 @@ def crawl_reports(years=2):
                     try:
                         report_date = datetime.strptime(date_text, "%y.%m.%d")
                         if report_date < cutoff_date:
-                            print(f"   🛑 {date_text} 도달 (오래된 자료). 다음 종목으로.")
+                            print(f"    {date_text} 도달 (오래된 자료). 다음 종목으로.")
                             stop_crawling = True
                             break
                     except ValueError:
@@ -164,8 +164,8 @@ def crawl_reports(years=2):
 
             except WebDriverException as e:
                 # 크롬이 죽었을 때 처리
-                print(f"   ⚠️ 브라우저 에러 발생: {e}")
-                print("   🔄 브라우저를 재시작합니다...")
+                print(f"    브라우저 에러 발생: {e}")
+                print("    브라우저를 재시작합니다...")
                 try:
                     driver.quit()
                 except:
@@ -176,13 +176,13 @@ def crawl_reports(years=2):
                 break
                 
             except Exception as e:
-                print(f"   ❌ 일반 에러: {e}")
+                print(f"    일반 에러: {e}")
                 break
         
-        print(f"   👉 총 {stock_download_count}개 신규 저장")
+        print(f"    총 {stock_download_count}개 신규 저장")
             
     driver.quit()
-    print(f"\n✅ 전체 작업 완료! 총 {total_download}개 파일이 저장되었습니다.")
+    print(f"\n 전체 작업 완료! 총 {total_download}개 파일이 저장되었습니다.")
 
 if __name__ == "__main__":
     crawl_reports(years=2)
