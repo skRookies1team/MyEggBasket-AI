@@ -213,9 +213,20 @@ class PortfolioRebalancer:
                         reason = f" 익절권이나 상승세 유지({ai_score}점)"
 
             # [CASE 3] AI 점수 기반 확정 매도
-            elif ai_score < 40:  # 기존 < 40 유지 (39점 포함 여부는 기존 로직 존중)
-                final_action = '전량매도'
-                reason = f"AI 점수 미달({ai_score}점) - 확정 매도"
+            elif ai_score < 20:
+                # 매수한 지 30분이 안 지났으면, 점수가 나빠도 일단 버팀 (Signal Decay 방어)
+                if code in last_buy_times:
+                    elapsed_buy = (now - last_buy_times[code]).total_seconds() / 60.0
+                    if elapsed_buy < BUY_MIN_HOLD_MINUTES:
+                        final_action = '유지'
+                        reason = f"⏳ 점수 급락({ai_score}점)이나 보유 대기({int(elapsed_buy)}분 경과)"
+                    else:
+                        final_action = '전량매도'
+                        reason = f"AI 점수 미달({ai_score}점) - 확정 매도"
+                else:
+                    # 매수 기록이 없으면(재시작 등) 그냥 매도
+                    final_action = '전량매도'
+                    reason = f"AI 점수 미달({ai_score}점) - 확정 매도"
 
             # [CASE 4] 일반 리밸런싱
             else:
@@ -352,7 +363,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
 
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
@@ -377,7 +388,7 @@ class AIAutoTrader:
         time.sleep(1.0)
 
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
         order_type = "BUY" if action == '매수' else "SELL"
 
         payload = {
