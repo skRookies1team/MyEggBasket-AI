@@ -30,6 +30,7 @@ LOG_FILE_PATH = os.path.join(current_dir, "trade_record.csv")
 # -----------------------------------------------------------
 from ai_pipeline.feature_store import OnlineFeatureStore
 from ai_pipeline.boosting_model.train import StackingEnsemble
+from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
 STOCK_NAME_MAP = {
     "005930": "삼성전자", "000660": "SK하이닉스", "207940": "삼성바이오로직스",
@@ -352,7 +353,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
 
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
@@ -377,7 +378,7 @@ class AIAutoTrader:
         time.sleep(1.0)
 
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
         order_type = "BUY" if action == '매수' else "SELL"
 
         payload = {
