@@ -28,7 +28,6 @@ except ImportError:
     print(" GCN 모델 파일을 찾을 수 없습니다.")
     get_gae_model = None
 
-
 # =========================================================
 # ✅ 메모리 최적화 함수 (날짜 타입 오류 방지 적용)
 # =========================================================
@@ -336,7 +335,24 @@ class FeatureEngineer:
         if self.gcn_loader: X = self.gcn_loader.add_gcn_features(X, code_col=temp_code_col)
 
         X = self.merge_sentiment_scores(X, stock_codes, csv_file)
-        X = X.fillna(0)
+        # 1) "0도 의미 있는 값"인 피처들 (절대 건드리지 않음)
+        value_sensitive_keywords = (
+            'prdy',  # 전일대비 등락률
+            'return',  # 수익률
+            'momentum',  # 모멘텀
+            'roc',  # Rate of Change
+        )
+
+        # 2) NaN → 0 처리해도 되는 피처들
+        safe_zero_prefixes = (
+            'hist_',  # 기술적 지표
+            'gcn_',  # GCN 임베딩
+            'sentiment_',  # 감성 피처
+        )
+
+        zero_fill_prefixes = ("hist_", "gcn_", "sentiment_")
+        zero_fill_cols = [c for c in X.columns if c.startswith(zero_fill_prefixes)]
+        X[zero_fill_cols] = X[zero_fill_cols].fillna(0.0)
 
         # [수정] 메모리 최적화 적용
         X = reduce_mem_usage(X)
@@ -377,8 +393,18 @@ class FeatureEngineer:
                     y = df_cache['target']
                     if 'stck_shrn_iscd' in df_cache.columns:
                         codes = df_cache['stck_shrn_iscd']
-                        exclude_cols = ['target', 'stck_shrn_iscd', 'timestamp', 'close', 'date', 'time']
-                        X = df_cache.drop(columns=[c for c in exclude_cols if c in df_cache.columns], errors='ignore')
+                        exclude_cols = [
+                            "target",
+                            "stck_shrn_iscd",
+                            "timestamp",
+                            "close",
+                            "date",
+                            "time",
+                        ]
+                        X = df_cache.drop(
+                            columns=[c for c in exclude_cols if c in df_cache.columns],
+                            errors="ignore",
+                        )
                     else:
                         codes = pd.Series([0] * len(df_cache))
                         X = df_cache.drop(columns=['target'])
