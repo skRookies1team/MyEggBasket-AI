@@ -38,5 +38,5 @@
     "sentiment_volatility",
     "sentiment_trend"
   ],
-  "best_threshold": 0.7900000000000005
+  "best_threshold": 0.9300000000000004
 }

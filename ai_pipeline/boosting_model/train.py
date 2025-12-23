@@ -55,7 +55,7 @@ class StackingEnsemble:
         self.meta_model = LogisticRegression(
             random_state=42,
             max_iter=1000,
-            class_weight='balanced'  # 핵심!
+            class_weight=None  # 핵심!
         )
 
         self.feature_names = None
@@ -71,12 +71,8 @@ class StackingEnsemble:
             self.feature_names = list(X_train.columns)
 
         # [수정 1] 클래스 불균형 비율 계산 및 적용
-        num_pos = y_train.sum()
-        num_neg = len(y_train) - num_pos
-        scale_pos_weight = np.sqrt(num_neg / num_pos)
-
-        print(f" [Info] 데이터 비율 - Positive: {num_pos}, Negative: {num_neg}")
-        print(f" [Info] 적용할 scale_pos_weight: {scale_pos_weight:.4f}")
+        scale_pos_weight = 1.0
+        print(f" [Info] 정밀도(Precision) 확보를 위해 scale_pos_weight를 {scale_pos_weight}로 고정합니다.")
 
         # 가중치 파라미터 업데이트
         self.xgb_model.set_params(scale_pos_weight=scale_pos_weight)
@@ -102,14 +98,38 @@ class StackingEnsemble:
 
         # [수정 3] 최적 임계값(Threshold) 찾기
         if X_val is not None and y_val is not None:
-            print(" 4) 최적 임계값(Threshold) 튜닝 중...")
+            print(" 4) 최적 임계값(Threshold) 튜닝 중... (목표 Precision: 0.7 이상)")
             val_probs = self.predict_proba(X_val)[:, 1]
-            thresholds = np.arange(0.3, 0.8, 0.01)  # 0.3 ~ 0.8 사이 탐색
-            f1_scores = [f1_score(y_val, (val_probs >= t).astype(int)) for t in thresholds]
 
-            best_idx = np.argmax(f1_scores)
-            self.best_threshold = thresholds[best_idx]
-            print(f"    -> Best Threshold: {self.best_threshold:.2f} (Max F1: {f1_scores[best_idx]:.4f})")
+            # 0.5부터 0.99까지 촘촘하게 검사
+            thresholds = np.arange(0.5, 0.99, 0.01)
+
+            best_t = 0.5
+            best_prec = 0.0
+            target_precision = 0.7  # 목표 정밀도 설정 (이 밑이면 매수 금지)
+
+            for t in thresholds:
+                pred_labels = (val_probs >= t).astype(int)
+                if pred_labels.sum() == 0: continue  # 하나도 예측 안 한 경우 패스
+
+                prec = precision_score(y_val, pred_labels, zero_division=0)
+
+                # 목표 정밀도를 넘기면서, 가능한 많은 기회를 잡는(Recall이 0이 아닌) 지점 찾기
+                if prec >= target_precision:
+                    best_t = t
+                    best_prec = prec
+                    break  # 목표 달성하면 바로 중단 (가장 낮은 유효 Threshold 선택)
+
+                # 목표 달성 못했으면, 그냥 Precision이 가장 높은 곳이라도 기록
+                if prec > best_prec:
+                    best_prec = prec
+                    best_t = t
+
+            self.best_threshold = best_t
+            print(f"    -> Selected Threshold: {self.best_threshold:.2f} (Val Precision: {best_prec:.4f})")
+
+            if best_prec < 0.6:
+                print("    [Warning] 목표 정밀도(0.6)를 달성하지 못했습니다. 매매가 매우 위험할 수 있습니다.")
 
         print(" 학습 완료!")
 
