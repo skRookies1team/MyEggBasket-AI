@@ -1,24 +1,7 @@
 {
-  "xgboost": {
-    "max_depth": 7,
-    "learning_rate": 0.26049567356256315,
-    "n_estimators": 152,
-    "min_child_weight": 9,
-    "subsample": 0.7731159981952643,
-    "colsample_bytree": 0.7939225415269059,
-    "gamma": 0.17942716930080366,
-    "reg_alpha": 0.2767463663739335,
-    "reg_lambda": 2.5337131361165557e-08
-  },
-  "lightgbm": {
-    "num_leaves": 66,
-    "max_depth": 8,
-    "learning_rate": 0.2044655890378929,
-    "n_estimators": 214,
-    "min_child_samples": 29,
-    "subsample": 0.848624093465367,
-    "colsample_bytree": 0.8506702043752391,
-    "reg_alpha": 2.6752214470072653e-05,
-    "reg_lambda": 5.8763399636379896e-08
-  }
+    "profit_take": 0.10577529547538221,
+    "stop_loss": -0.10227408445313205,
+    "buy_score": 86,
+    "sell_score": 50,
+    "cooldown": 41
 }

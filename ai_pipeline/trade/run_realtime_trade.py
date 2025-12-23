@@ -106,17 +106,17 @@ class PortfolioRebalancer:
         # [쿨타임 필터링] 전량 매도한 지 얼마 안 된 종목은 매수 후보에서 제외
         # -------------------------------------------------------
         # 요청하신 고정 파라미터 적용
-        SELL_COOLDOWN_MINUTES = 24
+        SELL_COOLDOWN_MINUTES = 41
 
         # [설정] 전략 파라미터 (요청하신 정밀 값 적용)
-        PROFIT_TAKE_RATE = 2.2498702085610604  # 약 2.25%
-        STOP_LOSS_RATE = -5.6749957044906034  # 약 -5.67%
-        BUY_SCORE_THRESHOLD = 69
-        SELL_SCORE_THRESHOLD = 39  # 코드 로직상 39 미만 매도 등 활용
+        PROFIT_TAKE_RATE = 10.577529547538221
+        STOP_LOSS_RATE = -10.227408445313205
+        BUY_SCORE_THRESHOLD = 86
+        SELL_SCORE_THRESHOLD = 50
 
         # [추가 설정] 과도한 매매 방지
-        THRESHOLD_RATIO = 0.05  # 비중 5% 이상 차이날 때만 매매 (기존 0.02)
-        BUY_MIN_HOLD_MINUTES = 30  # 매수 후 최소 보유 시간
+        THRESHOLD_RATIO = 0.05
+        BUY_MIN_HOLD_MINUTES = 30
 
         now = datetime.now()
 
@@ -133,7 +133,6 @@ class PortfolioRebalancer:
             # 이미 보유중이면 쿨타임 상관없이 계산 (매도는 해야하니까)
             if code in held_codes:
                 return True
-            # 신규 진입인데 최근에 팔았다? -> 금지
             if code in last_sell_times:
                 elapsed = (now - last_sell_times[code]).total_seconds() / 60.0
                 if elapsed < SELL_COOLDOWN_MINUTES:
