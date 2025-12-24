@@ -12,9 +12,16 @@ from ai_pipeline.graph_build.build_edges import build_graph_structure
 from ai_pipeline.graph_build.build_gcn_dataset import create_pytorch_dataset
 from ai_pipeline.gcn_model.run_gcn import train_gcn
 from ai_pipeline.gcn_model.value_chain import ValueChainAnalyzer
-from ai_pipeline.boosting_model.predict import run_prediction
-from ai_pipeline.boosting_model.train_pipeline import run_full_training_pipeline
+from ai_pipeline.boosting_model.predict import run_prediction_pipeline
+# from ai_pipeline.boosting_model.train_pipeline import run_full_training_pipeline
 from ai_pipeline.config.settings import ES_HOST
+
+try:
+    from ai_pipeline.trade.ai_advisor import AIAdvisor
+except ImportError:
+    print(" [Warning] AIAdvisor 모듈을 찾을 수 없습니다. (ai_pipeline/trade/ai_advisor.py 파일 확인 필요)")
+    AIAdvisor = None
+
 
 def show_value_chain_recommendations():
     """
@@ -101,33 +108,51 @@ def run_full_pipeline():
         show_value_chain_recommendations()
 
         # [Step 6] 모델 학습
-        print("\n [Step 6/7] Boosting Model 학습 (공시 피처 포함)")
-        try:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-            data_dir = os.path.join(project_root, "data")
-            
-            if os.path.exists(data_dir):
-                # 학습 실행 (튜닝 없이 빠른 학습)
-                model, results = run_full_training_pipeline(data_dir, do_tuning=False)
-                print(" 모델 학습 완료 (공시 피처가 포함된 상태로 학습됨)")
-            else:
-                print(f" 학습 데이터 폴더를 찾을 수 없음: {data_dir}")
-        except Exception as e:
-            print(f" 모델 학습 중 오류 발생: {e}")
-            import traceback
-            traceback.print_exc()
+        #print("\n [Step 6/7] Boosting Model 학습 (공시 피처 포함)")
+        #try:
+        #    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+        #    data_dir = os.path.join(project_root, "data")
+        #    
+        #    if os.path.exists(data_dir):
+        #        # 학습 실행 (튜닝 없이 빠른 학습)
+        #        model, results = run_full_training_pipeline(data_dir, do_tuning=False)
+        #        print(" 모델 학습 완료 (공시 피처가 포함된 상태로 학습됨)")
+        #    else:
+        #        print(f" 학습 데이터 폴더를 찾을 수 없음: {data_dir}")
+        #except Exception as e:
+        #    print(f" 모델 학습 중 오류 발생: {e}")
+        #    import traceback
+        #    traceback.print_exc()
 
         # [Step 7] XGBoost/LightGBM 최종 예측
         print("\n [Step 7/7] Boosting Model 최종 예측")
-        run_prediction()
+        run_prediction_pipeline()
         
         elapsed = time.time() - start_time
         print("\n" + "="*60)
         print(f" [전체 파이프라인] 완료! (소요시간: {elapsed:.2f}초)")
         print("="*60)
+        
+        # [Step 8] AI 투자 자문 실행 (Advisor)
+        print("\n [Step 8/8] AI 투자 자문 보고서 생성")
+        if AIAdvisor:
+            try:
+                advisor = AIAdvisor()
+                advisor.generate_advice() # 분석하고 CSV에 저장함
+                print(" -> 자문 보고서 생성 완료 (ai_advice_history.csv)")
+            except Exception as e:
+                print(f" 자문 생성 중 오류: {e}")
+        else:
+            print(" AIAdvisor 모듈을 찾을 수 없습니다.")
 
     except Exception as e:
         print(f"\n 파이프라인 실행 중 에러 발생: {e}")
+        
+    elapsed = time.time() - start_time
+    print("\n" + "="*60)
+    print(f" [전체 파이프라인] 완료! (소요시간: {elapsed:.2f}초)")
+    print("="*60)
+    
         # import traceback
         # traceback.print_exc()
 

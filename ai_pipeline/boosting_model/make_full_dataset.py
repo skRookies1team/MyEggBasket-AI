@@ -49,7 +49,7 @@ class GCNFeatureExtractor:
 
 
 # =========================================================
-# ⚙️ 핵심: 학습용 피처 생성 함수 (RealtimeFeatureLoader 로직 이식)
+#  핵심: 학습용 피처 생성 함수 (RealtimeFeatureLoader 로직 이식)
 # =========================================================
 def calculate_base_features(df):
     """
@@ -102,7 +102,7 @@ def calculate_base_features(df):
 
 
 # =========================================================
-# 🚀 메인 데이터 생성 함수
+#  메인 데이터 생성 함수
 # =========================================================
 def generate_full_csv(data_dir, output_file):
     print(f"\n📂 데이터 디렉토리: {data_dir}")

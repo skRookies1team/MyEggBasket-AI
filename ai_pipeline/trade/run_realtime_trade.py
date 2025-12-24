@@ -348,7 +348,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
             if resp.status_code == 200:
@@ -369,7 +369,7 @@ class AIAutoTrader:
         print(f"      📡 주문 전송... [{name}({code}) {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
         time.sleep(1.0)
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'false'}
+        params = {'virtual': 'true'}
         order_type = "BUY" if action == '매수' else "SELL"
         payload = {
             "stockCode": code,
