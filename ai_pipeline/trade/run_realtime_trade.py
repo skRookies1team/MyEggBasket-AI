@@ -54,7 +54,7 @@ STOCK_NAME_MAP = {
 
 
 def get_stock_name(code):
-    return STOCK_NAME_MAP.get(code, code)  # 없으면 코드로 반환
+    return STOCK_NAME_MAP.get(code, code)
 
 
 # -----------------------------------------------------------
@@ -69,7 +69,6 @@ class PortfolioRebalancer:
         if ai_scores_df is None or ai_scores_df.empty:
             return pd.DataFrame()
 
-        # [수정: KeyError 방지] 필수 컬럼 확인
         if 'ai_score' not in ai_scores_df.columns:
             print(" [Error] AI 데이터에 'ai_score' 컬럼이 없습니다.")
             return pd.DataFrame()
@@ -82,44 +81,42 @@ class PortfolioRebalancer:
         merged_df = ai_scores_df.copy()
         held_codes = set(current_holdings_detail.keys())
 
-        # 보유 중이지만 AI 분석 결과가 없는 종목 처리 (점수 45점 부여)
         prediction_codes = set(merged_df['code'].values)
         missing_holdings = held_codes - prediction_codes
 
         if missing_holdings:
             missing_data = []
             for code in missing_holdings:
-                # 보유 종목 정보 가져오기
                 h_info = current_holdings_detail.get(code, {})
                 current_price = h_info.get('current_price', 0)
-
                 missing_data.append({
                     'code': code,
                     'name': get_stock_name(code),
-                    'ai_score': 45.0,  # 중립 점수
+                    'ai_score': 45.0,
                     'current_price': current_price
                 })
 
             if missing_data:
                 missing_df = pd.DataFrame(missing_data)
-                # 컬럼 타입 불일치 방지 등을 위해 concat 사용
                 merged_df = pd.concat([merged_df, missing_df], ignore_index=True)
 
         # -------------------------------------------------------
-        # [쿨타임 필터링]
+        # [파라미터 설정]
         # -------------------------------------------------------
         SELL_COOLDOWN_MINUTES = 41
         PROFIT_TAKE_RATE = 10.577529547538221
         STOP_LOSS_RATE = -10.227408445313205
         BUY_SCORE_THRESHOLD = 86
         SELL_SCORE_THRESHOLD = 50
+
+        # [추가 설정] 자금 관리
         THRESHOLD_RATIO = 0.05
         BUY_MIN_HOLD_MINUTES = 30
+        MAX_INDIVIDUAL_WEIGHT = 0.20  # [NEW] 종목당 최대 비중 20% 제한
 
         now = datetime.now()
 
         # 3. 필터링 (매수/유지 대상)
-        # [수정: KeyError 방지] 병합 후에도 ai_score가 있는지 재확인
         if 'ai_score' not in merged_df.columns:
             print(" [Error] 병합된 데이터에 'ai_score' 컬럼이 누락되었습니다.")
             return pd.DataFrame()
@@ -127,10 +124,8 @@ class PortfolioRebalancer:
         cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= BUY_SCORE_THRESHOLD)
         cond_hold = (merged_df['code'].isin(held_codes))
 
-        # 전체 후보군
         candidates = merged_df[cond_new_buy | cond_hold].copy()
 
-        # 매수 금지 필터 적용
         def check_buyable(row):
             code = row['code']
             if code in held_codes:
@@ -144,17 +139,19 @@ class PortfolioRebalancer:
         if not candidates.empty:
             candidates = candidates[candidates.apply(check_buyable, axis=1)].copy()
 
-        # [수정: KeyError 방지] 후보군이 없으면 빈 DF 반환 (여기서 에러가 났었음)
         if candidates.empty:
             return pd.DataFrame()
 
-        # 4. 비중 산출
+        # 4. 비중 산출 (최대 비중 제한 적용)
         candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= SELL_SCORE_THRESHOLD else 0)
         candidates['weight_score'] = np.power(candidates['calc_score'], 2)
         total_weight_score = candidates['weight_score'].sum()
 
         if total_weight_score > 0:
-            candidates['target_ratio'] = candidates['weight_score'] / total_weight_score
+            # 전체 비중 계산
+            raw_ratios = candidates['weight_score'] / total_weight_score
+            # [핵심] 개별 종목 비중이 20%를 넘지 않도록 Cap 씌우기
+            candidates['target_ratio'] = raw_ratios.apply(lambda x: min(x, MAX_INDIVIDUAL_WEIGHT))
         else:
             candidates['target_ratio'] = 0
 
@@ -172,7 +169,6 @@ class PortfolioRebalancer:
             current_amt = holding_info['amt']
             avg_price = holding_info['avg_price']
 
-            # current_price 안전하게 가져오기
             current_price = row.get('current_price', 0)
             if current_price == 0:
                 current_price = holding_info.get('current_price', 0)
@@ -180,15 +176,11 @@ class PortfolioRebalancer:
             target_amt = int(total_budget * target_ratio)
             diff = target_amt - current_amt
 
-            # 수익률 계산 (%)
             profit_rate = 0.0
             if avg_price > 0 and current_price > 0:
                 profit_rate = ((current_price - avg_price) / avg_price) * 100
 
-            # -----------------------------------------------------
-            # [스마트 매매 결정 로직]
-            # -----------------------------------------------------
-
+            # 매매 결정 로직
             if diff > threshold_amt:
                 base_action = '매수'
             elif diff < -threshold_amt:
@@ -213,13 +205,13 @@ class PortfolioRebalancer:
                 else:
                     if base_action == '매수':
                         final_action = '매수'
-                        reason = f"🚀 급등({profit_rate:.2f}%) + AI강력"
+                        reason = f"🚀 급등({profit_rate:.2f}%) + AI강세"
                     else:
                         final_action = '유지'
                         reason = f"💰 익절권이나 상승세 유지"
 
-            # [CASE 3] AI 점수 기반 확정 매도
-            elif ai_score < 20:  # 기준을 20점으로 안전하게 설정
+            # [CASE 3] AI 점수 미달 확정 매도
+            elif ai_score < 20:
                 if code in last_buy_times:
                     elapsed_buy = (now - last_buy_times[code]).total_seconds() / 60.0
                     if elapsed_buy < BUY_MIN_HOLD_MINUTES:
@@ -281,7 +273,7 @@ class AIAutoTrader:
     def __init__(self):
         print("\n" + "=" * 60)
         print("[AI AutoTrader] 관제형 자동매매 시스템 (Smart-Sync)")
-        print("    - 수정사항: 주문 실패는 반영하되, 3천만원 이상 급증(버그)은 차단")
+        print("    - 수정사항: 종목당 최대 비중 20% 제한 적용")
         print("=" * 60)
 
         self.store = OnlineFeatureStore()
@@ -474,7 +466,6 @@ class AIAutoTrader:
                 final_cash = api_cash
                 self.my_calculated_cash = api_cash
 
-        # [수정] 순서 변경: 먼저 my_holdings_detail을 계산 (수량 0 초과 필터링)
         my_holdings_detail = {}
         for h in holdings_list:
             qty = int(h.get('quantity', 0))
@@ -483,7 +474,6 @@ class AIAutoTrader:
                 avg_price = float(h.get('avgPrice', 0))
                 my_holdings_detail[code] = {'qty': qty, 'avg_price': avg_price, 'current_price': 0, 'amt': 0}
 
-        # [수정] 그 다음 필터링된 개수로 출력
         print(f" 💰 가용예산(확정): {final_cash:,}원 | 보유종목: {len(my_holdings_detail)}개")
 
         universe = set(self.target_codes) | set(my_holdings_detail.keys())
@@ -501,7 +491,6 @@ class AIAutoTrader:
             print(" [Info] 분석 가능한 종목 데이터가 없습니다.")
             return
 
-        # 밸류체인 확장
         high_scorers = [res for res in ai_results if res['ai_score'] >= 80]
         expanded_codes = set()
         if self.vc_strategy and self.vc_strategy.vc_analyzer:
@@ -570,17 +559,22 @@ class AIAutoTrader:
             elif action == '매수':
                 amt_to_buy = row['diff']
                 safe_cash = final_cash * 0.95
-                if safe_cash >= amt_to_buy:
-                    qty_to_buy = int(amt_to_buy // price)
-                    if qty_to_buy > 0:
-                        if self.send_order(code, action, price, qty_to_buy, profit_rate, row['reason']):
-                            used_cash = (qty_to_buy * price)
-                            final_cash -= used_cash
-                            self.my_calculated_cash -= used_cash
-                            print(f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
-                else:
-                    if safe_cash > 100000 and amt_to_buy > 0:
-                        print(f"       예수금 부족 ({code}): 필요 {amt_to_buy:,} > 가능 {safe_cash:,.0f}")
+
+                if amt_to_buy > safe_cash:
+                    if safe_cash > 0:
+                        print(f"       ⚠️ 예산 조정: 목표({amt_to_buy:,}) > 가능({safe_cash:,.0f}) -> 가능 금액만큼만 주문")
+                        amt_to_buy = safe_cash
+                    else:
+                        print(f"       🚫 예수금 부족으로 매수 불가 ({code})")
+                        continue
+
+                qty_to_buy = int(amt_to_buy // price)
+                if qty_to_buy > 0:
+                    if self.send_order(code, action, price, qty_to_buy, profit_rate, row['reason']):
+                        used_cash = (qty_to_buy * price)
+                        final_cash -= used_cash
+                        self.my_calculated_cash -= used_cash
+                        print(f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
 
         print(" [Cycle] 종료")
 
