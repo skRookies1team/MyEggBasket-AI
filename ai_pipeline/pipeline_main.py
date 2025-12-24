@@ -128,11 +128,6 @@ def run_full_pipeline():
         print("\n [Step 7/7] Boosting Model 최종 예측")
         run_prediction_pipeline()
         
-        elapsed = time.time() - start_time
-        print("\n" + "="*60)
-        print(f" [전체 파이프라인] 완료! (소요시간: {elapsed:.2f}초)")
-        print("="*60)
-        
         # [Step 8] AI 투자 자문 실행 (Advisor)
         print("\n [Step 8/8] AI 투자 자문 보고서 생성")
         if AIAdvisor:

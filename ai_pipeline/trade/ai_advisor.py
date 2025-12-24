@@ -42,10 +42,19 @@ STOCK_NAME_MAP = {
     "105560": "KB금융", "068270": "셀트리온", "015760": "한국전력",
     "028260": "삼성물산", "032830": "삼성생명", "012330": "현대모비스",
     "035420": "NAVER", "006400": "삼성SDI", "086790": "하나금융지주",
-    "064350": "현대로템", "051910": "LG화학", "066570": "LG전자",
-    "034020": "두산에너빌리티", "012450": "한화에어로스페이스",
-    "009830": "한화솔루션", "005490": "POSCO홀딩스"
-}
+    "006405": "삼성SDI우", "000810": "삼성화재", "010140": "삼성중공업",
+    "064350": "현대로템", "138040": "메리츠금융지주", "051910": "LG화학",
+    "010130": "고려아연", "009540": "HD한국조선해양", "267260": "HD현대",
+    "066570": "LG전자", "066575": "LG전자우", "033780": "KT&G",
+    "003550": "LG", "003555": "LG우", "310200": "애니플러스",
+    "034020": "두산에너빌리티", "012450": "한화에어로스페이스", "009830": "한화솔루션",
+    "011070": "LG이노텍", "071050": "한국금융지주", "081660": "휠라홀딩스",
+    "046890": "서울반도체", "323410": "카카오뱅크", "017670": "SK텔레콤",
+    "010620": "현대미포조선", "047050": "포스코인터내셔널", "009155": "삼성전기우",
+    "275630": "에이치시티", "009835": "한화솔루션우", "001440": "대한전선",
+    "138930": "BNK금융지주", "175330": "JB금융지주", "051900": "LG생활건강",
+    "005490": "POSCO홀딩스", "034220": "LG디스플레이"
+    }
 
 def get_stock_name(code):
     return STOCK_NAME_MAP.get(code, code)
@@ -125,20 +134,31 @@ class AIAdvisor:
     # AI 분석
     # -------------------------------------------------------
     def analyze_stock(self, code):
-        features = self.store.get_realtime_features(code)
-        if features is None or features.empty:
+        try:
+            features = self.store.get_realtime_features(code)
+            if features is None or features.empty:
+                return None
+
+            probs = self.model.predict_proba(features)
+            score = probs[0, 1] * 100
+
+            # [추가] close 컬럼 존재 여부 확인
+            if "close" not in features.columns:
+                print(f" [{code}] close 컬럼 없음")
+                return None
+
+            price = int(features["close"].values[0])
+
+            return {
+                "code": code,
+                "name": get_stock_name(code),
+                "ai_score": round(score, 2),
+                "current_price": price
+            }
+
+        except Exception as e:
+            print(f" [{code}] 분석 실패: {e}")
             return None
-
-        probs = self.model.predict_proba(features)
-        score = probs[0, 1] * 100
-        price = int(features["close"].values[0])
-
-        return {
-            "code": code,
-            "name": get_stock_name(code),
-            "ai_score": round(score, 2),
-            "current_price": price
-        }
 
     # -------------------------------------------------------
     # 출력 블록
