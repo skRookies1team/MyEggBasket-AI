@@ -84,7 +84,7 @@ class PortfolioRebalancer:
         # -------------------------------------------------------
         # 원래 기준: BUY_SCORE_THRESHOLD = 86
         # 수정 기준: 30 (매수 의견이 나오는지 확인용)
-        BUY_SCORE_THRESHOLD = 30  
+        BUY_SCORE_THRESHOLD = 86  
         
         SELL_SCORE_THRESHOLD = 50
         PROFIT_TAKE_RATE = 10.5
