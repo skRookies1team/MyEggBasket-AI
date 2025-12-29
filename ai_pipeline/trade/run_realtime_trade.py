@@ -52,7 +52,6 @@ STOCK_NAME_MAP = {
     "005490": "POSCO홀딩스", "034220": "LG디스플레이"
 }
 
-
 def get_stock_name(code):
     return STOCK_NAME_MAP.get(code, code)
 
@@ -98,6 +97,7 @@ class PortfolioRebalancer:
 
             if missing_data:
                 missing_df = pd.DataFrame(missing_data)
+                # 컬럼 매칭을 위해 필요한 컬럼만 선택하여 병합할 수도 있으나, concat이 자동으로 처리함
                 merged_df = pd.concat([merged_df, missing_df], ignore_index=True)
 
         # -------------------------------------------------------
@@ -116,11 +116,12 @@ class PortfolioRebalancer:
 
         now = datetime.now()
 
-        # 3. 필터링 (매수/유지 대상)
+        # [Safety Check] merged_df에 ai_score 컬럼이 있는지 재확인
         if 'ai_score' not in merged_df.columns:
             print(" [Error] 병합된 데이터에 'ai_score' 컬럼이 누락되었습니다.")
             return pd.DataFrame()
 
+        # 3. 필터링 (매수/유지 대상)
         cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= BUY_SCORE_THRESHOLD)
         cond_hold = (merged_df['code'].isin(held_codes))
 
@@ -139,7 +140,12 @@ class PortfolioRebalancer:
         if not candidates.empty:
             candidates = candidates[candidates.apply(check_buyable, axis=1)].copy()
 
+        # [KeyError 방지] 후보군이 없거나 컬럼이 유실된 경우 방어
         if candidates.empty:
+            return pd.DataFrame()
+
+        if 'ai_score' not in candidates.columns:
+            print(" [Error] 후보군 데이터프레임에 'ai_score' 컬럼이 없습니다.")
             return pd.DataFrame()
 
         # 4. 비중 산출 (최대 비중 제한 적용)
@@ -273,7 +279,7 @@ class AIAutoTrader:
     def __init__(self):
         print("\n" + "=" * 60)
         print("[AI AutoTrader] 관제형 자동매매 시스템 (Smart-Sync)")
-        print("    - 수정사항: 종목당 최대 비중 20% 제한 적용")
+        print("    - 수정사항: KeyError 방지 및 자산 0원 처리 보강")
         print("=" * 60)
 
         self.store = OnlineFeatureStore()
@@ -348,7 +354,7 @@ class AIAutoTrader:
 
     def get_balance(self):
         url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
         try:
             resp = requests.get(url, headers=self.get_headers(), params=params)
             if resp.status_code == 200:
@@ -369,7 +375,7 @@ class AIAutoTrader:
         print(f"      📡 주문 전송... [{name}({code}) {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
         time.sleep(1.0)
         url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'true'}
+        params = {'virtual': 'false'}
         order_type = "BUY" if action == '매수' else "SELL"
         payload = {
             "stockCode": code,
@@ -411,9 +417,9 @@ class AIAutoTrader:
             score = probs[0, 1] * 100 if hasattr(probs, 'ndim') and probs.ndim == 2 else probs[1] * 100
             current_price = int(features['close'].values[0])
             result = {
-                'code': code,
+                'code': str(code),
                 'name': get_stock_name(code),
-                'ai_score': round(score, 2),
+                'ai_score': round(float(score), 2),
                 'current_price': current_price
             }
             self.last_ai_scores[code] = result
