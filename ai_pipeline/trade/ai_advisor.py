@@ -17,8 +17,11 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 env_path = os.path.join(project_root, ".env")
+
 if os.path.exists(env_path):
     load_dotenv(env_path)
+
+
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
 TEST_EMAIL = os.getenv("TEST_EMAIL")
@@ -29,6 +32,7 @@ ADVICE_LOG_PATH = os.path.join(current_dir, "ai_advice_history.csv")
 # -----------------------------------------------------------
 # 2. 모듈 Import
 # -----------------------------------------------------------
+
 from ai_pipeline.feature_store import OnlineFeatureStore
 from ai_pipeline.boosting_model.train import StackingEnsemble
 from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
@@ -36,6 +40,7 @@ from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 # -----------------------------------------------------------
 # 3. 종목명 매핑
 # -----------------------------------------------------------
+
 STOCK_NAME_MAP = {
     "005930": "삼성전자", "000660": "SK하이닉스", "207940": "삼성바이오로직스",
     "005380": "현대차", "000270": "기아", "055550": "신한지주",
@@ -58,7 +63,6 @@ STOCK_NAME_MAP = {
 
 def get_stock_name(code):
     return STOCK_NAME_MAP.get(code, code)
-
 # -----------------------------------------------------------
 # 3.5. PortfolioRebalancer
 # -----------------------------------------------------------
@@ -100,7 +104,7 @@ class PortfolioRebalancer:
             candidates['weight_score'] / total_weight_score
             if total_weight_score > 0 else 0
         )
-
+        
         rebalancing_plan = []
         threshold_amt = total_budget * THRESHOLD_RATIO
 
@@ -192,8 +196,7 @@ class AIAdvisor:
             params={"virtual": "true"}
         )
         return res.json() if res.status_code == 200 else None
-    
-    
+
     def get_my_portfolio_id(self):
         """
         로그인한 사용자의 포트폴리오 목록 조회 후
@@ -220,8 +223,6 @@ class AIAdvisor:
             print(f"[Portfolio] 조회 오류: {e}")
             return None
 
-    
-    
     def send_advice_to_server(self, row):
         """
         AI 리밸런싱 결과 1건을 백엔드에 저장
@@ -238,10 +239,10 @@ class AIAdvisor:
             "손절매": "SELL",
             "익절": "SELL"
         }
-        
+
         action_enum = action_map.get(row["action"], "HOLD")
-        
         portfolio_id = self.get_my_portfolio_id()
+
         if not portfolio_id:
             print(" [Server] portfolioId 없음 → 전송 스킵")
             return
@@ -280,12 +281,12 @@ class AIAdvisor:
             print(f"   ⚠️ 데이터 변환 또는 전송 중 오류: {e}")
             # 디버깅을 위해 payload 출력 (필요시 주석 해제)
             # print("Payload:", payload)
-    
-    
+
     def analyze_stock(self, code):
         features = self.store.get_realtime_features(code)
         if features is None or features.empty:
             return None
+
         probs = self.model.predict_proba(features)
         return {
             "code": code,
@@ -293,42 +294,17 @@ class AIAdvisor:
             "ai_score": round(probs[0,1] * 100, 2),
             "current_price": int(features["close"].values[0])
         }
-        
-        
-    def print_block(self, row, total_asset=0):
-        try:
-            # 안전한 형변환 (KeyError, TypeError 방지)
-            name = row.get("name", "Unknown")
-            code = row.get("code", "000000")
-            score = float(row.get("ai_score", 0))
-            curr = int(float(row.get("current_amt", 0)))
-            targ = int(float(row.get("target_amt", 0)))
-            diff = int(float(row.get("diff", 0)))
-            action = row.get("action", "-")
-            reason = row.get("reason", "-")
-
-            print("-" * 50)
-            print(f"📌 종목명(코드): {name}({code})")
-            print(f"   • AI 점수   : {score:.2f}점")
-            print(f"   • 현재 보유 : {curr:,}원")
-            print(f"   • 목표 보유 : {targ:,}원")
-            print(f"   • 조절 금액 : {diff:,}원")
-            print(f"   • 판단      : {action}")
-            print(f"   • 이유      : {reason}")
-            print("-" * 50)
-        except Exception as e:
-            print(f"   [Display Error] 출력 중 오류 발생: {e}")
-            
 
     def generate_advice(self):
         print("\n[System] --- AI 조언 생성 프로세스 시작 ---")
-        
+
         # 1. 로그인 체크
         if not self.auth_token:
             print("[Auth] 토큰 없음, 로그인 시도 중...")
             if not self.login():
                 print("[Error] 로그인 실패! 환경변수나 백엔드 상태를 확인하세요.")
                 return
+
             else:
                 print("[Auth] 로그인 성공.")
 
@@ -343,7 +319,7 @@ class AIAdvisor:
         summary = balance.get("summary", {})
         cash_raw = summary.get("totalCashAmount") or summary.get("d2CashAmount") or 0
         cash = int(cash_raw)
-        
+
         print(f"[Account] 예수금: {cash:,}원 / 보유종목 수: {len(holdings)}개")
 
         my_holdings = {}
@@ -360,7 +336,7 @@ class AIAdvisor:
         print("[AI] 종목 분석 및 점수 산출 중...")
         ai_results = []
         target_list = list(set(self.target_codes) | set(my_holdings.keys()))
-        
+     
         # 진행상황을 보기 위해 tqdm이 없다면 카운터 출력
         count = 0
         for code in target_list:
@@ -369,8 +345,10 @@ class AIAdvisor:
                 if code in my_holdings:
                     my_holdings[code]["current_price"] = data["current_price"]
                     my_holdings[code]["amt"] = data["current_price"] * my_holdings[code]["qty"]
+
                 ai_results.append(data)
                 count += 1
+                
                 # 너무 많으니 100개 단위로만 로그 찍기
                 if count % 100 == 0:
                     print(f"  ... {count}개 종목 분석 완료")
@@ -395,9 +373,10 @@ class AIAdvisor:
             return
 
         # 6. 서버 전송
-        print(f"[Action] {len(plan_df)}건의 매매 신호 발생! 서버 전송 시작...")
+        print(f"\n[Action] {len(plan_df)}건의 매매 신호 발생! 상세 내역 출력 및 서버 전송 시작...")
+        
         for _, row in plan_df.iterrows():
-            
+            # 요청하신 포맷대로 출력
             print("-" * 50)
             print(f"📌 종목명(코드): {row['name']}({row['code']})")
             print(f"   • AI 점수   : {float(row['ai_score']):.2f}점")
@@ -407,15 +386,15 @@ class AIAdvisor:
             print(f"   • 판단      : {row['action']}")
             print(f"   • 이유      : {row['reason']}")
             print("-" * 50)
-            
-            self.send_advice_to_server(row)
-            
+
+            self.send_advice_to_server(row)        
+
         print("[System] 프로세스 완료. 5분 대기...\n")
-            
 
 # -----------------------------------------------------------
 # 5. 자동 실행
 # -----------------------------------------------------------
+
 if __name__ == "__main__":
     advisor = AIAdvisor()
     while True:
