@@ -60,7 +60,7 @@ def get_stock_name(code):
     return STOCK_NAME_MAP.get(code, code)
 
 # -----------------------------------------------------------
-# 3.5. PortfolioRebalancer (기준 완화 버전)
+# 3.5. PortfolioRebalancer
 # -----------------------------------------------------------
 class PortfolioRebalancer:
     def __init__(self, risk_aversion='neutral'):
@@ -79,114 +79,83 @@ class PortfolioRebalancer:
         merged_df = ai_scores_df.copy()
         held_codes = set(current_holdings_detail.keys())
 
-        # -------------------------------------------------------
-        # [설정] 전략 파라미터 (테스트를 위해 매수 기준 완화)
-        # -------------------------------------------------------
-        # 원래 기준: BUY_SCORE_THRESHOLD = 86
-        # 수정 기준: 30 (매수 의견이 나오는지 확인용)
-        BUY_SCORE_THRESHOLD = 86  
-        
+        BUY_SCORE_THRESHOLD = 86
         SELL_SCORE_THRESHOLD = 50
         PROFIT_TAKE_RATE = 10.5
         STOP_LOSS_RATE = -10.2
-        THRESHOLD_RATIO = 0.01 # 1%만 차이나도 매매 추천 (민감도 증가)
-        SELL_COOLDOWN_MINUTES = 0 # 쿨타임 해제
+        THRESHOLD_RATIO = 0.01
 
-        # 필터링
         cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= BUY_SCORE_THRESHOLD)
-        cond_hold = (merged_df['code'].isin(held_codes))
+        cond_hold = merged_df['code'].isin(held_codes)
         candidates = merged_df[cond_new_buy | cond_hold].copy()
 
         if candidates.empty:
             return pd.DataFrame()
 
-        # 비중 산출
         candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= SELL_SCORE_THRESHOLD else 0)
         candidates['weight_score'] = np.power(candidates['calc_score'], 2)
         total_weight_score = candidates['weight_score'].sum()
 
-        if total_weight_score > 0:
-            candidates['target_ratio'] = candidates['weight_score'] / total_weight_score
-        else:
-            candidates['target_ratio'] = 0
+        candidates['target_ratio'] = (
+            candidates['weight_score'] / total_weight_score
+            if total_weight_score > 0 else 0
+        )
 
-        # 주문 생성
         rebalancing_plan = []
         threshold_amt = total_budget * THRESHOLD_RATIO
 
         for _, row in candidates.iterrows():
             code = row['code']
-            ai_score = row['ai_score']
-            target_ratio = row['target_ratio']
+            holding = current_holdings_detail.get(code, {'amt': 0, 'avg_price': 0, 'current_price': 0})
 
-            holding_info = current_holdings_detail.get(code, {'qty': 0, 'avg_price': 0, 'current_price': 0, 'amt': 0})
-            current_amt = holding_info['amt']
-            avg_price = holding_info['avg_price']
-            
-            current_price = row.get('current_price', 0)
-            if current_price == 0: current_price = holding_info.get('current_price', 0)
+            current_amt = holding['amt']
+            avg_price = holding['avg_price']
+            current_price = row.get('current_price', holding.get('current_price', 0))
 
-            target_amt = int(total_budget * target_ratio)
+            target_amt = int(total_budget * row['target_ratio'])
             diff = target_amt - current_amt
 
-            profit_rate = 0.0
-            if avg_price > 0 and current_price > 0:
-                profit_rate = ((current_price - avg_price) / avg_price) * 100
+            profit_rate = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
 
-            # 액션 결정
             if diff > threshold_amt:
-                base_action = '매수'
+                action = '매수'
             elif diff < -threshold_amt:
-                base_action = '비중축소'
+                action = '비중축소'
             else:
-                base_action = '유지'
+                action = '유지'
 
-            final_action = base_action
-            reason = f"목표비중 {target_ratio*100:.1f}%"
+            reason = f"목표비중 {row['target_ratio']*100:.1f}%"
 
-            # 손절/익절 로직
             if profit_rate <= STOP_LOSS_RATE:
-                final_action = '전량매도' if ai_score < 40 else '비중축소'
+                action = '전량매도'
                 reason = f"손절매({profit_rate:.2f}%)"
             elif profit_rate >= PROFIT_TAKE_RATE:
-                final_action = '비중축소'
+                action = '비중축소'
                 reason = f"익절({profit_rate:.2f}%)"
-            
-            # 최종 추가
-            if final_action != '유지':
+
+            if action != '유지':
                 rebalancing_plan.append({
-                    'code': code,
-                    'name': get_stock_name(code),
-                    'ai_score': ai_score,
-                    'current_amt': current_amt,
-                    'target_amt': target_amt,
-                    'diff': int(diff),
-                    'action': final_action,
-                    'profit_rate': profit_rate,
-                    'reason': reason
+                    "code": code,
+                    "name": get_stock_name(code),
+                    "ai_score": row['ai_score'],
+                    "current_amt": current_amt,
+                    "target_amt": target_amt,
+                    "target_ratio": row['target_ratio'],  # <--- 이 줄을 꼭 추가해주세요!
+                    "diff": diff,
+                    "action": action,
+                    "reason": reason
                 })
 
-        df_plan = pd.DataFrame(rebalancing_plan)
-        if not df_plan.empty:
-            df_plan['abs_diff'] = df_plan['diff'].abs()
-            df_plan = df_plan.sort_values(by='abs_diff', ascending=False)
-            
-        return df_plan
+        return pd.DataFrame(rebalancing_plan)
 
 # -----------------------------------------------------------
 # 4. AI Advisor
 # -----------------------------------------------------------
 class AIAdvisor:
     def __init__(self):
-        print("\n" + "=" * 60)
-        print("[AI Advisor] 매매 의견 생성기 (TEST MODE)")
-        print(" - 특징: 매수 기준을 30점으로 낮춰서 추천 종목 강제 출력")
-        print("=" * 60)
-
         self.store = OnlineFeatureStore()
         self.model = StackingEnsemble()
         self.rebalancer = PortfolioRebalancer()
-        self.vc_strategy = ValueChainStrategy()
 
         model_path = os.path.join(project_root, "ai_pipeline/boosting_model/models")
         self.model.load_model(model_path)
@@ -195,34 +164,14 @@ class AIAdvisor:
         self.auth_token = None
         self.init_csv_log()
 
-    # -------------------------------------------------------
-    # CSV 로그
-    # -------------------------------------------------------
     def init_csv_log(self):
         if not os.path.exists(ADVICE_LOG_PATH):
             with open(ADVICE_LOG_PATH, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow([
-                    "timestamp", "code", "name",
-                    "ai_score", "current_amt",
-                    "target_amt", "diff",
-                    "action", "reason"
+                csv.writer(f).writerow([
+                    "timestamp","code","name","ai_score",
+                    "current_amt","target_amt","diff","action","reason"
                 ])
 
-    def save_advice(self, row):
-        with open(ADVICE_LOG_PATH, "a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                row["code"], row["name"],
-                row["ai_score"], row["current_amt"],
-                row["target_amt"], row["diff"],
-                row["action"], row["reason"]
-            ])
-
-    # -------------------------------------------------------
-    # 인증 / 잔고
-    # -------------------------------------------------------
     def login(self):
         res = requests.post(
             f"{BACKEND_API_URL}/auth/login",
@@ -240,155 +189,235 @@ class AIAdvisor:
         res = requests.get(
             f"{BACKEND_API_URL}/kis/trade/balance",
             headers=self.get_headers(),
-            params={"virtual": "true"} # 모의투자로 변경 확인
+            params={"virtual": "true"}
         )
         return res.json() if res.status_code == 200 else None
-
-    # -------------------------------------------------------
-    # AI 분석
-    # -------------------------------------------------------
-    def analyze_stock(self, code):
+    
+    
+    def get_my_portfolio_id(self):
+        """
+        로그인한 사용자의 포트폴리오 목록 조회 후
+        첫 번째 portfolioId 반환
+        """
         try:
-            features = self.store.get_realtime_features(code)
-            if features is None or features.empty:
+            url = f"{BACKEND_API_URL}/portfolios"
+            res = requests.get(url, headers=self.get_headers(), timeout=5)
+
+            if res.status_code != 200:
+                print(f"[Portfolio] 조회 실패: {res.status_code}")
                 return None
 
-            probs = self.model.predict_proba(features)
-            score = probs[0, 1] * 100
-            
-            if "close" not in features.columns:
+            portfolios = res.json()
+            if not portfolios:
+                print("[Portfolio] 포트폴리오 없음")
                 return None
-                
-            price = int(features["close"].values[0])
-            
-            return {
-                "code": code,
-                "name": get_stock_name(code),
-                "ai_score": round(score, 2),
-                "current_price": price
-            }
+
+            portfolio_id = portfolios[0].get("portfolioId")
+            print(f"[Portfolio] 사용 portfolioId = {portfolio_id}")
+            return portfolio_id
+
         except Exception as e:
-            print(f" [{code}] 분석 실패: {e}")
+            print(f"[Portfolio] 조회 오류: {e}")
             return None
 
-    # -------------------------------------------------------
-    # 출력 블록
-    # -------------------------------------------------------
-    def print_block(self, row, total_asset):
-        ratio = (row["target_amt"] / total_asset * 100) if total_asset > 0 else 0
-        sign = "+" if row["diff"] > 0 else ""
+    
+    
+    def send_advice_to_server(self, row):
+        """
+        AI 리밸런싱 결과 1건을 백엔드에 저장
+        """
+        url = f"{BACKEND_API_URL}/ai-recommendations"
 
-        print(f"\n▶ {row['name']} ({row['code']})")
-        print(f" - AI 점수     : {row['ai_score']}")
-        print(f" - 현재 보유   : {int(row['current_amt']):,}원")
-        print(f" - 목표 보유   : {int(row['target_amt']):,}원 ({ratio:.1f}%)")
-        print(f" - 조절 금액   : {sign}{int(row['diff']):,}원")
-        print(f" - 판단        : {row['action']}")
-        print(f" - 이유        : {row['reason']}")
+        action_map = {
+            "매수": "BUY",
+            "추가 매수": "BUY",
+            "강력매수": "BUY",
+            "매수고려": "BUY",
+            "비중축소": "SELL",
+            "전량매도": "SELL",
+            "손절매": "SELL",
+            "익절": "SELL"
+        }
+        
+        action_enum = action_map.get(row["action"], "HOLD")
+        
+        portfolio_id = self.get_my_portfolio_id()
+        if not portfolio_id:
+            print(" [Server] portfolioId 없음 → 전송 스킵")
+            return
 
-    # -------------------------------------------------------
-    # 핵심 실행
-    # -------------------------------------------------------
+        try:
+            target_ratio_val = row.get("target_ratio", 0)
+            target_percentage = target_ratio_val * 100  # 0.15 -> 15.0
+
+            payload = {
+                "portfolioId": int(portfolio_id),
+                "stockCode": str(row["code"]),
+                "aiScore": float(row["ai_score"]),
+                "actionType": action_enum,  # "BUY" or "SELL"
+                "currentHolding": int(row["current_amt"]),
+                "targetHolding": int(row["target_amt"]),
+                "targetHoldingPercentage": float(round(target_percentage, 2)),
+                "adjustmentAmount": int(row["diff"]),
+                "reasonSummary": str(row["reason"]),
+                "riskWarning": "AI Risk Model Analysis"  # 고정값 혹은 row에서 추출
+            }
+
+            # 4. 서버 전송
+            res = requests.post(
+                url,
+                json=payload,
+                headers=self.get_headers(),
+                timeout=5
+            )
+
+            if res.status_code in (200, 201):
+                print(f"   ✅ 서버 저장 완료 [{row['name']}({row['code']})]: {action_enum}")
+            else:
+                print(f"   ❌ 서버 저장 실패 {res.status_code}: {res.text}")
+
+        except Exception as e:
+            print(f"   ⚠️ 데이터 변환 또는 전송 중 오류: {e}")
+            # 디버깅을 위해 payload 출력 (필요시 주석 해제)
+            # print("Payload:", payload)
+    
+    
+    def analyze_stock(self, code):
+        features = self.store.get_realtime_features(code)
+        if features is None or features.empty:
+            return None
+        probs = self.model.predict_proba(features)
+        return {
+            "code": code,
+            "name": get_stock_name(code),
+            "ai_score": round(probs[0,1] * 100, 2),
+            "current_price": int(features["close"].values[0])
+        }
+        
+        
+    def print_block(self, row, total_asset=0):
+        try:
+            # 안전한 형변환 (KeyError, TypeError 방지)
+            name = row.get("name", "Unknown")
+            code = row.get("code", "000000")
+            score = float(row.get("ai_score", 0))
+            curr = int(float(row.get("current_amt", 0)))
+            targ = int(float(row.get("target_amt", 0)))
+            diff = int(float(row.get("diff", 0)))
+            action = row.get("action", "-")
+            reason = row.get("reason", "-")
+
+            print("-" * 50)
+            print(f"📌 종목명(코드): {name}({code})")
+            print(f"   • AI 점수   : {score:.2f}점")
+            print(f"   • 현재 보유 : {curr:,}원")
+            print(f"   • 목표 보유 : {targ:,}원")
+            print(f"   • 조절 금액 : {diff:,}원")
+            print(f"   • 판단      : {action}")
+            print(f"   • 이유      : {reason}")
+            print("-" * 50)
+        except Exception as e:
+            print(f"   [Display Error] 출력 중 오류 발생: {e}")
+            
+
     def generate_advice(self):
-        print(f"\n[Advisor] {datetime.now().strftime('%H:%M:%S')} 의견 생성 중...")
+        print("\n[System] --- AI 조언 생성 프로세스 시작 ---")
+        
+        # 1. 로그인 체크
+        if not self.auth_token:
+            print("[Auth] 토큰 없음, 로그인 시도 중...")
+            if not self.login():
+                print("[Error] 로그인 실패! 환경변수나 백엔드 상태를 확인하세요.")
+                return
+            else:
+                print("[Auth] 로그인 성공.")
 
-        if not self.auth_token and not self.login():
-            print(" 로그인 실패")
-            return
-
+        # 2. 잔고 조회 체크
         balance = self.get_balance()
-        if not balance:
-            print(" 잔고 조회 실패")
+        if not isinstance(balance, dict):
+            print("[Error] 잔고 조회 실패 (응답이 dict가 아님). API 상태를 확인하세요.")
             return
 
-        holdings = balance.get("holdings")
-        if not isinstance(holdings, list):
-            holdings = []
-
+        # 3. 보유 종목 및 현금 파싱
+        holdings = balance.get("holdings") or []
         summary = balance.get("summary", {})
         cash_raw = summary.get("totalCashAmount") or summary.get("d2CashAmount") or 0
-        cash = int(str(cash_raw).replace(",", "")) if cash_raw else 0
+        cash = int(cash_raw)
+        
+        print(f"[Account] 예수금: {cash:,}원 / 보유종목 수: {len(holdings)}개")
 
         my_holdings = {}
         for h in holdings:
-            qty = int(h.get("quantity", 0))
-            if qty > 0:
+            if int(h.get("quantity", 0)) > 0:
                 my_holdings[h["stockCode"]] = {
-                    "qty": qty,
+                    "qty": int(h["quantity"]),
                     "avg_price": float(h.get("avgPrice", 0)),
                     "current_price": 0,
                     "amt": 0
                 }
 
-        universe = set(self.target_codes) | set(my_holdings.keys())
+        # 4. AI 분석 수행
+        print("[AI] 종목 분석 및 점수 산출 중...")
         ai_results = []
-
-        for code in universe:
+        target_list = list(set(self.target_codes) | set(my_holdings.keys()))
+        
+        # 진행상황을 보기 위해 tqdm이 없다면 카운터 출력
+        count = 0
+        for code in target_list:
             data = self.analyze_stock(code)
             if data:
                 if code in my_holdings:
                     my_holdings[code]["current_price"] = data["current_price"]
                     my_holdings[code]["amt"] = data["current_price"] * my_holdings[code]["qty"]
                 ai_results.append(data)
+                count += 1
+                # 너무 많으니 100개 단위로만 로그 찍기
+                if count % 100 == 0:
+                    print(f"  ... {count}개 종목 분석 완료")
 
         if not ai_results:
-            print(" 분석 결과 없음")
+            print("[Warning] AI 분석 결과가 하나도 없습니다. 장 마감 시간이거나 데이터 문제일 수 있습니다.")
             return
 
-        ai_df = pd.DataFrame(ai_results)
-        total_stock_val = sum(h["amt"] for h in my_holdings.values())
-        total_asset = cash + total_stock_val
+        print(f"[AI] 총 {len(ai_results)}개 종목 분석 완료.")
 
-        # 리밸런싱 실행
+        # 5. 리밸런싱 계산
+        ai_df = pd.DataFrame(ai_results)
+        total_asset = cash + sum(h["amt"] for h in my_holdings.values())
+        print(f"[Strategy] 총 자산(현금+주식): {total_asset:,}원 기준으로 리밸런싱 계산 시작")
+
         plan_df = self.rebalancer.run_ai_rebalancing(
             my_holdings, ai_df, total_asset, {}, {}
         )
 
-        # 1. 실행 기준 충족 (매수/매도/비중조절)
-        if not plan_df.empty:
-            print("\n[AI 매매 제안] (기준 충족)")
-            for _, row in plan_df.iterrows():
-                self.print_block(row, total_asset)
-                self.save_advice(row)
-        
-        # 2. 유망 종목 무조건 출력 (매수 제안이 없어도 상위 종목은 보여줌)
-        print("\n[AI 유망 종목 TOP 5] (참고용)")
-        top_df = ai_df.sort_values("ai_score", ascending=False).head(5)
-        
-        # 이미 매매 제안에 있는 종목은 제외하고 출력하려면 로직 추가 가능
-        # 여기서는 단순히 Top 5를 보여줌
-        existing_codes = plan_df['code'].tolist() if not plan_df.empty else []
-        
-        VIRTUAL_RATIO = 0.10
-        for _, r in top_df.iterrows():
-            # 매매 제안에 이미 포함된 종목이면 스킵 (중복 출력 방지)
-            if r['code'] in existing_codes:
-                continue
+        if plan_df.empty:
+            print("[Strategy] 리밸런싱 대상 종목이 없습니다. (조건을 만족하는 매수/매도 신호 없음)")
+            return
 
-            holding = my_holdings.get(r["code"])
-            current_amt = holding["amt"] if holding else 0
-            target_amt = int(total_asset * VIRTUAL_RATIO)
-
-            row = {
-                "code": r["code"],
-                "name": r["name"],
-                "ai_score": r["ai_score"],
-                "current_amt": current_amt,
-                "target_amt": target_amt,
-                "diff": target_amt - current_amt,
-                "action": "강력매수" if r['ai_score'] >= 80 else "매수고려",
-                "reason": "AI 점수 상위"
-            }
-            self.print_block(row, total_asset)
+        # 6. 서버 전송
+        print(f"[Action] {len(plan_df)}건의 매매 신호 발생! 서버 전송 시작...")
+        for _, row in plan_df.iterrows():
+            
+            print("-" * 50)
+            print(f"📌 종목명(코드): {row['name']}({row['code']})")
+            print(f"   • AI 점수   : {float(row['ai_score']):.2f}점")
+            print(f"   • 현재 보유 : {int(row['current_amt']):,}원")
+            print(f"   • 목표 보유 : {int(row['target_amt']):,}원")
+            print(f"   • 조절 금액 : {int(row['diff']):,}원")
+            print(f"   • 판단      : {row['action']}")
+            print(f"   • 이유      : {row['reason']}")
+            print("-" * 50)
+            
+            self.send_advice_to_server(row)
+            
+        print("[System] 프로세스 완료. 5분 대기...\n")
+            
 
 # -----------------------------------------------------------
 # 5. 자동 실행
 # -----------------------------------------------------------
 if __name__ == "__main__":
     advisor = AIAdvisor()
-    try:
-        while True:
-            advisor.generate_advice()
-            time.sleep(300)
-    except KeyboardInterrupt:
-        print("\n[System] Advisor 종료")
+    while True:
+        advisor.generate_advice()
+        time.sleep(300)
