@@ -88,6 +88,7 @@ class PortfolioRebalancer:
         PROFIT_TAKE_RATE = 10.5
         STOP_LOSS_RATE = -10.2
         THRESHOLD_RATIO = 0.01
+        MAX_INDIVIDUAL_WEIGHT = 0.20
 
         cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= BUY_SCORE_THRESHOLD)
         cond_hold = merged_df['code'].isin(held_codes)
@@ -99,11 +100,13 @@ class PortfolioRebalancer:
         candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= SELL_SCORE_THRESHOLD else 0)
         candidates['weight_score'] = np.power(candidates['calc_score'], 2)
         total_weight_score = candidates['weight_score'].sum()
-
-        candidates['target_ratio'] = (
-            candidates['weight_score'] / total_weight_score
-            if total_weight_score > 0 else 0
-        )
+        
+        if total_weight_score > 0:
+            raw_ratios = candidates['weight_score'] / total_weight_score
+            # [핵심] 20% Cap 적용
+            candidates['target_ratio'] = raw_ratios.apply(lambda x: min(x, MAX_INDIVIDUAL_WEIGHT))
+        else:
+            candidates['target_ratio'] = 0
         
         rebalancing_plan = []
         threshold_amt = total_budget * THRESHOLD_RATIO
@@ -118,35 +121,78 @@ class PortfolioRebalancer:
 
             target_amt = int(total_budget * row['target_ratio'])
             diff = target_amt - current_amt
+            ai_score = row['ai_score']
 
-            profit_rate = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
+            profit_rate = 0.0
+            if avg_price > 0 and current_price > 0:
+                profit_rate = ((current_price - avg_price) / avg_price * 100)
 
+            # 1차 판단 (금액 차이 기반)
             if diff > threshold_amt:
-                action = '매수'
+                base_action = '매수'
             elif diff < -threshold_amt:
-                action = '비중축소'
+                base_action = '비중축소'
             else:
-                action = '유지'
+                base_action = '유지'
 
+            # 2차 판단 (상세 로직 적용 - run_realtime_trade.py 로직 참조)
+            final_action = '유지'
             reason = f"목표비중 {row['target_ratio']*100:.1f}%"
 
-            if profit_rate <= STOP_LOSS_RATE:
-                action = '전량매도'
-                reason = f"손절매({profit_rate:.2f}%)"
-            elif profit_rate >= PROFIT_TAKE_RATE:
-                action = '비중축소'
-                reason = f"익절({profit_rate:.2f}%)"
+            # [CASE 0] 목표 금액이 0원인데 보유 중이면 -> 전량 매도
+            if target_amt == 0 and current_amt > 0:
+                final_action = '전량매도'
+                reason = f"AI 점수 미달({ai_score}점) / 목표비중 0%"
 
-            if action != '유지':
+            # [CASE 1] 손절매
+            elif profit_rate <= STOP_LOSS_RATE and current_amt > 0:
+                final_action = '전량매도' if ai_score < 40 else '비중축소'
+                reason = f"📉 손절매({profit_rate:.2f}%)"
+
+            # [CASE 2] 익절
+            elif profit_rate >= PROFIT_TAKE_RATE and current_amt > 0:
+                if ai_score < 90:
+                    final_action = '비중축소'
+                    # 익절인데 목표금액이 0이면 전량매도
+                    if target_amt == 0: final_action = '전량매도'
+                    reason = f"💰 익절({profit_rate:.2f}%)"
+                else:
+                    # 점수가 90점 이상으로 매우 높으면 익절 구간이어도 홀딩하거나 추매
+                    if base_action == '매수':
+                        final_action = '매수'
+                        reason = f"🚀 급등({profit_rate:.2f}%) + AI강세"
+                    else:
+                        final_action = '유지'
+                        reason = f"💰 익절권이나 상승세 유지"
+
+            # [CASE 3] AI 점수 미달 (20점 미만) -> 전량 매도
+            elif ai_score < 20 and current_amt > 0:
+                final_action = '전량매도'
+                reason = f"AI 점수 위험수준({ai_score}점)"
+
+            # [CASE 4] 일반 리밸런싱 (위의 특수 케이스가 아닐 때)
+            else:
+                final_action = base_action
+                if final_action == '비중축소':
+                    if target_amt == 0:
+                        final_action = '전량매도'
+                        reason = "목표 비중 0%"
+                    else:
+                        reason = "비중 축소 (리밸런싱)"
+                elif final_action == '매수':
+                    reason = "추가/신규 매수"
+
+            # 결과 저장
+            if final_action != '유지':
                 rebalancing_plan.append({
                     "code": code,
                     "name": get_stock_name(code),
-                    "ai_score": row['ai_score'],
+                    "ai_score": ai_score,
                     "current_amt": current_amt,
                     "target_amt": target_amt,
-                    "target_ratio": row['target_ratio'],  # <--- 이 줄을 꼭 추가해주세요!
+                    "target_ratio": row['target_ratio'],
                     "diff": diff,
-                    "action": action,
+                    "action": final_action,
                     "reason": reason
                 })
 
