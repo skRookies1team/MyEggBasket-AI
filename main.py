@@ -6,6 +6,8 @@ import time
 import sys
 import os
 from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Dict, Any
 
 # [중요] 기존 코드들을 불러오기 위한 경로 설정
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,13 +22,33 @@ try:
     from ai_pipeline.trade.run_realtime_trade import AIAutoTrader
     # 3. 학습/예측 파이프라인
     from ai_pipeline.predict_main import run_pipeline_with_rebalancing
+    # 4. 뉴스 트렌드 분석기 (버블차트용)
+    from ai_pipeline.news_etl.TrendAnalyzer import TrendAnalyzer
+    
 except ImportError as e:
     print(f"[오류] 모듈을 찾을 수 없습니다: {e}")
     print("폴더 구조가 ai_pipeline 폴더 상위에 main.py가 있는지 확인해주세요.")
 
-# -----------------------------------------------------------
+
+# API 응답용 데이터 모델 정의 (Pydantic)
+class KeywordItem(BaseModel):
+    name: str
+    count: int
+
+class CategoryItem(BaseModel):
+    name: str
+    count: int
+
+class PeriodTrend(BaseModel):
+    keywords: List[KeywordItem]
+    categories: List[CategoryItem]
+    period_start: str
+    period_end: str
+
+class TrendResponse(BaseModel):
+    periods: Dict[str, PeriodTrend]
+
 # 봇 관리자 (스레드로 백그라운드 실행 관리)
-# -----------------------------------------------------------
 class BotManager:
     def __init__(self):
         self.trader_running = False
@@ -102,9 +124,14 @@ class BotManager:
 
 bot_manager = BotManager()
 
-# -----------------------------------------------------------
+# 트렌드 분석기 인스턴스 생성 (Elasticsearch 연결)
+try:
+    trend_analyzer = TrendAnalyzer() 
+except Exception as e:
+    print(f"[Warning] Elasticsearch 연결 실패 가능성: {e}")
+    trend_analyzer = None
+
 # FastAPI 앱 생성 (여기가 바로 AI Swagger를 만드는 부분!)
-# -----------------------------------------------------------
 app = FastAPI(
     title="AI Trading Controller",
     description="AI 자동매매 및 파이프라인 제어용 API",
@@ -150,6 +177,39 @@ async def run_training(background_tasks: BackgroundTasks):
     """
     background_tasks.add_task(run_pipeline_with_rebalancing)
     return {"msg": "AI 학습 및 예측 파이프라인이 백그라운드에서 시작되었습니다."}
+
+# 5. 뉴스 트렌드(버블차트) API 추가
+@app.post("/api/app/ai/keywords/trending", response_model=TrendResponse)
+async def get_trending_keywords():
+    """
+    백엔드 요청에 따라 최근 트렌드 키워드 및 카테고리 정보를 반환합니다.
+    (Elasticsearch 기반)
+    """
+    if not trend_analyzer:
+         raise HTTPException(status_code=500, detail="TrendAnalyzer가 초기화되지 않았습니다. (ES 연결 확인 필요)")
+
+    try:
+        # AI 코드 실행 (데이터 분석 수행)
+        raw_result = trend_analyzer.get_period_trends()
+        
+        # TrendAnalyzer 내부 에러 체크
+        for key, val in raw_result.items():
+            if "error" in val:
+                print(f"[Trend Error] {key}: {val['error']}")
+                # 에러 발생 시 빈 리스트로 처리하거나 500 에러를 낼 수 있음
+                # 여기서는 로깅만 하고 데이터는 있는 그대로 보냄 (Client가 처리하도록)
+
+        # 백엔드 API 구조 { "periods": ... } 에 맞춰 포장
+        response_data = {
+            "periods": raw_result
+        }
+        
+        return response_data
+
+    except Exception as e:
+        print(f"Server Error during Trend Analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # -----------------------------------------------------------
 # 서버 실행
