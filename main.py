@@ -5,7 +5,9 @@ import threading
 import time
 import sys
 import os
-from datetime import datetime
+import threading
+import time
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
@@ -24,6 +26,8 @@ try:
     from ai_pipeline.predict_main import run_pipeline_with_rebalancing
     # 4. 뉴스 트렌드 분석기 (버블차트용)
     from ai_pipeline.news_etl.TrendAnalyzer import TrendAnalyzer
+    # 5. 뉴스 수집 모듈 추가
+    import ai_pipeline.news_source.bulk_collector as bulk_collector
     
 except ImportError as e:
     print(f"[오류] 모듈을 찾을 수 없습니다: {e}")
@@ -121,8 +125,63 @@ class BotManager:
             "trader_status": "RUNNING" if self.trader_running else "STOPPED",
             "advisor_status": "RUNNING" if self.advisor_running else "STOPPED"
         }
+        
+        
+# [NEW] 뉴스 수집기 관리자 (추가된 코드)
+# -----------------------------------------------------------
+class CollectorManager:
+    def __init__(self, interval_seconds: int = 600, lookback_days: int = 2):
+        self.interval_seconds = interval_seconds
+        self.lookback_days = lookback_days
+        self._running = False
+        self._thread = None
 
+    def _loop(self):
+        print(" >> [Start] BulkCollector daemon started")
+        while self._running:
+            try:
+                now = datetime.now(timezone.utc)
+                end_date = now.strftime("%Y-%m-%d")
+                start_date = (now - timedelta(days=self.lookback_days)).strftime("%Y-%m-%d")
+                # 실제 수집 모듈 실행
+                bulk_collector.run_date_range_collection(start_date, end_date)
+            except Exception as e:
+                print(f" >> [Bulk Collector Error] {e}")
+            
+            # 대기 로직
+            slept = 0
+            while self._running and slept < self.interval_seconds:
+                time.sleep(1)
+                slept += 1
+        print(" >> [Stop] BulkCollector daemon stopped")
+
+    def start(self):
+        if self._running:
+            return False
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self, timeout: int = 5):
+        if not self._running:
+            return False
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=timeout)
+        return True
+
+    def status(self):
+        return {
+            "running": self._running, 
+            "interval_seconds": self.interval_seconds, 
+            "lookback_days": self.lookback_days
+        }
+        
 bot_manager = BotManager()
+
+# 컬렉터 매니저 인스턴스 생성 (10분 주기, 2일치)
+collector_manager = CollectorManager(interval_seconds=600, lookback_days=2)
 
 # 트렌드 분석기 인스턴스 생성 (Elasticsearch 연결)
 try:
@@ -138,12 +197,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Lifespan (수명 주기) 핸들러
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # [Startup]
+    print(" >> [System] Starting Collector Manager...")
+    try:
+        collector_manager.start()
+    except Exception as e:
+        print(f"[Warning] Failed to start collector: {e}")
+    
+    yield
+    
+    # [Shutdown]
+    print(" >> [System] Stopping Collector Manager...")
+    try:
+        collector_manager.stop()
+    except Exception as e:
+        print(f"[Warning] Failed to stop collector cleanly: {e}")
+
 # 1. 상태 확인 API
 @app.get("/status")
 def get_status():
-    return bot_manager.get_status()
+    status = bot_manager.get_status()
+    status.update({"collector": collector_manager.status()})
+    return status
 
-# 2. 자동매매 제어 API (팀원이 말한 그 Endpoint!)
+# 2. 자동매매 제어 API 
 @app.post("/bot/trade/{action}")
 def control_trader(action: str):
     """
@@ -168,6 +248,25 @@ def control_advisor(action: str):
         return {"msg": bot_manager.stop_advisor()}
     else:
         raise HTTPException(status_code=400, detail="start 또는 stop만 입력 가능합니다.")
+    
+    
+# 3.5 뉴스 수집기 제어 API (추가된 코드)
+@app.post("/collector/{action}")
+def control_collector(action: str):
+    """
+    action: 'start', 'stop', 'status'
+    """
+    if action == "start":
+        ok = collector_manager.start()
+        return {"msg": "collector started" if ok else "collector already running"}
+    if action == "stop":
+        ok = collector_manager.stop()
+        return {"msg": "collector stop signal sent" if ok else "collector not running"}
+    if action == "status":
+        return collector_manager.status()
+    
+    raise HTTPException(status_code=400, detail="action must be start|stop|status")
+
 
 # 4. 학습 파이프라인 실행 API
 @app.post("/pipeline/train")
