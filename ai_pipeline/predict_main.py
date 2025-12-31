@@ -44,8 +44,8 @@ def run_pipeline_with_rebalancing():
     # ---------------------------------------------------------
 
     # [Step 1~2] 데이터 수집 및 그래프 생성 (필요시 주석 해제하여 실행)
-    run_finance_news_etl()
-    build_graph_structure()
+    #run_finance_news_etl()
+    #build_graph_structure()
     # (주의: GCN 학습은 시간이 오래 걸리므로 여기서는 생략하고 기존 모델 사용 가정)
 
     print("\n [Step 2] AI 모델 예측 실행 (전체 종목)")
