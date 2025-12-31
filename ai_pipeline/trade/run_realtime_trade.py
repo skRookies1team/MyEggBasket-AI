@@ -20,17 +20,24 @@ env_path = os.path.join(project_root, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
-BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8080/api/app")
-TEST_EMAIL = os.getenv("TEST_EMAIL", "testuser@example.com")
-TEST_PASSWORD = os.getenv("TEST_PASSWORD", "password1234")
+# [설정 변경] Secret Key 사용
+AI_SECRET_KEY = os.getenv("AI_SECRET_KEY", "myeggbasketsecretkey00")
+BACKEND_API_URL = "http://localhost:8081/api/internal"  # 내부 API 주소
 LOG_FILE_PATH = os.path.join(current_dir, "trade_record.csv")
 
 # -----------------------------------------------------------
 # 2. 모듈 Import
 # -----------------------------------------------------------
-from ai_pipeline.feature_store import OnlineFeatureStore
-from ai_pipeline.boosting_model.train import StackingEnsemble
-from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
+try:
+    from ai_pipeline.feature_store import OnlineFeatureStore
+    from ai_pipeline.boosting_model.train import StackingEnsemble
+    from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
+except ImportError:
+    # 경로 문제 시 로컬 경로 기준으로 다시 시도 (Docker 등 환경 고려)
+    sys.path.append(os.path.abspath(os.path.join(current_dir, "../../")))
+    from ai_pipeline.feature_store import OnlineFeatureStore
+    from ai_pipeline.boosting_model.train import StackingEnsemble
+    from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
 STOCK_NAME_MAP = {
     "005930": "삼성전자", "000660": "SK하이닉스", "207940": "삼성바이오로직스",
@@ -117,10 +124,6 @@ class PortfolioRebalancer:
         now = datetime.now()
 
         # 3. 필터링 (매수/유지 대상)
-        if 'ai_score' not in merged_df.columns:
-            print(" [Error] 병합된 데이터에 'ai_score' 컬럼이 누락되었습니다.")
-            return pd.DataFrame()
-
         cond_new_buy = (~merged_df['code'].isin(held_codes)) & (merged_df['ai_score'] >= BUY_SCORE_THRESHOLD)
         cond_hold = (merged_df['code'].isin(held_codes))
 
@@ -148,9 +151,7 @@ class PortfolioRebalancer:
         total_weight_score = candidates['weight_score'].sum()
 
         if total_weight_score > 0:
-            # 전체 비중 계산
             raw_ratios = candidates['weight_score'] / total_weight_score
-            # [핵심] 개별 종목 비중이 20%를 넘지 않도록 Cap 씌우기
             candidates['target_ratio'] = raw_ratios.apply(lambda x: min(x, MAX_INDIVIDUAL_WEIGHT))
         else:
             candidates['target_ratio'] = 0
@@ -272,20 +273,25 @@ class PortfolioRebalancer:
 class AIAutoTrader:
     def __init__(self):
         print("\n" + "=" * 60)
-        print("[AI AutoTrader] 관제형 자동매매 시스템 (Smart-Sync)")
-        print("    - 수정사항: 종목당 최대 비중 20% 제한 적용")
+        print("[AI AutoTrader] 관제형 자동매매 시스템 (Multi-User Support)")
+        print(f"    - Target API: {BACKEND_API_URL}")
         print("=" * 60)
 
         self.store = OnlineFeatureStore()
         self.rebalancer = PortfolioRebalancer(risk_aversion='neutral')
+        self.headers = {"X-AI-SECRET": AI_SECRET_KEY}  # 인증 헤더
 
         # 밸류체인 전략 초기화
-        if ValueChainStrategy:
-            self.vc_strategy = ValueChainStrategy()
-            print(" [Init] 밸류체인 전략 모듈 로드 완료")
-        else:
+        try:
+            if ValueChainStrategy:
+                self.vc_strategy = ValueChainStrategy()
+                print(" [Init] 밸류체인 전략 모듈 로드 완료")
+            else:
+                self.vc_strategy = None
+        except Exception:
             self.vc_strategy = None
 
+        # AI 모델 로드
         self.model = StackingEnsemble()
         model_path = os.path.join(project_root, "ai_pipeline/boosting_model/models")
         try:
@@ -301,142 +307,130 @@ class AIAutoTrader:
                              "003550", "003555", "310200", "034020", "012450", "009830", "011070", "071050", "081660",
                              "046890", "323410", "017670", "010620", "047050", "009155", "275630", "009835", "001440",
                              "138930", "175330", "051900", "005490", "034220"]
-        self.auth_token = None
-        self.last_ai_scores = {}
-        self.last_sell_times = {}
-        self.last_buy_times = {}
-        self.my_calculated_cash = None
+
+        # 유저별 상태 관리 (last_sell_times 등)
+        self.user_states = {}
         self.init_csv_log()
 
     def init_csv_log(self):
         if not os.path.exists(LOG_FILE_PATH):
             with open(LOG_FILE_PATH, mode='w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'code', 'action', 'qty', 'price', 'profit_rate', 'total_amt', 'reason'])
+                writer.writerow(
+                    ['timestamp', 'user_id', 'code', 'action', 'qty', 'price', 'profit_rate', 'total_amt', 'reason'])
 
-    def save_trade_log(self, code, action, qty, price, profit_rate, reason):
+    def save_trade_log(self, user_id, code, action, qty, price, profit_rate, reason):
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             total_amt = qty * price
             p_rate_str = f"{profit_rate:.2f}%"
             with open(LOG_FILE_PATH, mode='a', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
-                writer.writerow([timestamp, code, action, qty, price, p_rate_str, total_amt, reason])
-            print(f"     로그 저장 완료 (수익률: {p_rate_str})")
+                writer.writerow([timestamp, user_id, code, action, qty, price, p_rate_str, total_amt, reason])
+            print(f"     [Log] 저장 완료 (User: {user_id})")
         except Exception as e:
-            print(f"       로그 저장 실패: {e}")
+            print(f"       [Log] 저장 실패: {e}")
 
-    def login(self):
-        url = f"{BACKEND_API_URL}/auth/login"
-        payload = {"email": TEST_EMAIL, "password": TEST_PASSWORD}
+    def get_active_users(self):
         try:
-            resp = requests.post(url, json=payload, timeout=5)
-            if resp.status_code == 200:
-                self.auth_token = resp.json().get('accessToken')
-                print(f" [Auth] 백엔드 로그인 성공")
-                return True
+            url = f"{BACKEND_API_URL}/users"
+            res = requests.get(url, headers=self.headers, timeout=5)
+            if res.status_code == 200:
+                return res.json()  # List of user IDs
             else:
-                print(f" [Auth] 로그인 실패: Status={resp.status_code}, Msg={resp.text}")
-            return False
+                print(f"[System] 유저 목록 조회 실패: {res.status_code}")
+                return []
         except Exception as e:
-            print(f" [Auth] 서버 연결 오류: {e}")
-            return False
+            print(f"[System] API 오류 (get_active_users): {e}")
+            return []
 
-    def get_headers(self):
-        if not self.auth_token: return {}
-        return {'Authorization': f'Bearer {self.auth_token}'}
-
-    def get_balance(self):
-        url = f"{BACKEND_API_URL}/kis/trade/balance"
-        params = {'virtual': 'true'}
+    def get_user_balance(self, user_id):
+        url = f"{BACKEND_API_URL}/balance/{user_id}"
         try:
-            resp = requests.get(url, headers=self.get_headers(), params=params)
-            if resp.status_code == 200:
-                return resp.json()
-            elif resp.status_code == 401:
-                print(f"       [Balance] 401 인증 실패. 재로그인 시도...")
-                self.login()
-                return None
+            res = requests.get(url, headers=self.headers, timeout=5)
+            if res.status_code == 200:
+                return res.json()
             else:
-                print(f"       [Balance] 조회 실패: {resp.status_code} - {resp.text}")
+                print(f" [User {user_id}] 잔고 조회 실패: {res.status_code}")
                 return None
         except Exception as e:
-            print(f"       [Balance] 요청 중 예외 발생: {e}")
+            print(f" [User {user_id}] 잔고 조회 API 예외: {e}")
             return None
 
-    def send_order(self, code, action, price, qty, profit_rate, reason):
-        name = get_stock_name(code)
-        print(f"      📡 주문 전송... [{name}({code}) {qty}주 {action}] (수익률 {profit_rate:.2f}%) ({reason})")
-        time.sleep(1.0)
-        url = f"{BACKEND_API_URL}/kis/trade"
-        params = {'virtual': 'true'}
+    def send_user_order(self, user_id, code, action, price, qty, reason):
+        url = f"{BACKEND_API_URL}/trade/{user_id}"
         order_type = "BUY" if action == '매수' else "SELL"
         payload = {
             "stockCode": code,
             "orderType": order_type,
             "quantity": qty,
             "price": price,
-            "triggerSource": "MANUAL"
+            "triggerSource": "AUTO_AI"
         }
         try:
-            res = requests.post(url, headers=self.get_headers(), params=params, json=payload)
+            res = requests.post(url, headers=self.headers, json=payload, timeout=5)
             if res.status_code == 200:
-                msg = res.json().get('msg1', '주문 완료')
-                print(f"     주문 성공! - {msg}")
-                self.save_trade_log(code, action, qty, price, profit_rate, reason)
-                if action == '매수':
-                    self.last_buy_times[code] = datetime.now()
-                if action == '전량매도':
-                    self.last_sell_times[code] = datetime.now()
-                    print(f"      🕒 [{code}] 매수 금지 쿨타임 시작 (24분)")
-                    if code in self.last_buy_times:
-                        del self.last_buy_times[code]
+                print(f"   ✅ [User {user_id}] 주문 접수 성공: {code} {action} {qty}주")
                 return True
             else:
-                print(f"       주문 실패: {res.status_code} - {res.text}")
+                print(f"   ❌ [User {user_id}] 주문 접수 실패: {res.text}")
                 return False
         except Exception as e:
-            print(f"       주문 중 에러 발생: {e}")
+            print(f"   ⚠️ [User {user_id}] 주문 전송 중 오류: {e}")
             return False
 
     def analyze_stock(self, code):
-        features = self.store.get_realtime_features(code)
-        if features is None or features.empty:
-            if code in self.last_ai_scores:
-                return self.last_ai_scores[code]
-            else:
-                return None
+        """
+        단일 종목 AI 분석 (feature_store + model)
+        """
         try:
-            probs = self.model.predict_proba(features)
-            score = probs[0, 1] * 100 if hasattr(probs, 'ndim') and probs.ndim == 2 else probs[1] * 100
-            current_price = int(features['close'].values[0])
-            result = {
+            df = self.store.load_feature_data(code)
+            if df.empty: return None
+
+            # 예측 수행
+            pred_score = self.model.predict(df)
+            current_price = df['close'].iloc[-1]
+
+            # (옵션) 밸류체인 점수 반영 등 추가 로직 가능
+
+            return {
                 'code': code,
                 'name': get_stock_name(code),
-                'ai_score': round(score, 2),
+                'ai_score': pred_score,
                 'current_price': current_price
             }
-            self.last_ai_scores[code] = result
-            return result
         except Exception as e:
-            print(f"       [{code}] 분석 중 오류: {e}")
+            # print(f" [Error] {code} 분석 실패: {e}")
             return None
 
-    def run_cycle(self):
-        print(f"\n  [Cycle] {datetime.now().strftime('%H:%M:%S')} 리밸런싱 시작")
+    def process_user(self, user_id):
+        """
+        개별 사용자 포트폴리오 분석 및 매매 실행
+        """
+        print(f"\n >>> [User {user_id}] 포트폴리오 분석 시작")
 
-        if not self.auth_token:
-            if not self.login(): return
+        # 1. 사용자 상태 초기화 (메모리 관리)
+        if user_id not in self.user_states:
+            self.user_states[user_id] = {
+                'last_sell_times': {},
+                'last_buy_times': {},
+                'calculated_cash': None
+            }
+        state = self.user_states[user_id]
 
-        balance_data = self.get_balance()
-        if not balance_data: return
+        # 2. 잔고 조회
+        balance_data = self.get_user_balance(user_id)
+        if not balance_data:
+            print(f"     [Skip] 잔고 정보를 가져올 수 없어 건너뜁니다.")
+            return
 
-        summary = balance_data.get('summary', {})
-        holdings_list = balance_data.get('holdings') or []
+        # 3. 데이터 파싱
+        # (API 응답 필드명에 따라 수정 필요: totalDeposit, depositReceived 등)
+        d2_cash = balance_data.get('depositReceived', 0)
+        total_cash = balance_data.get('totalDeposit', 0)
+        holdings_list = balance_data.get('holdings', [])
 
-        d2_cash = summary.get('d2CashAmount')
-        total_cash = summary.get('totalCashAmount', 0)
-
+        # 숫자 변환 헬퍼
         def _parse_amount(val, default=0):
             if val is None: return default
             try:
@@ -448,39 +442,49 @@ class AIAutoTrader:
 
         d2_amt = _parse_amount(d2_cash)
         total_amt = _parse_amount(total_cash)
+        # 예수금 우선순위: D+2예수금 > 총예수금
         api_cash = d2_amt if (d2_amt is not None and d2_amt > 0) else total_amt
 
-        if self.my_calculated_cash is None:
-            self.my_calculated_cash = api_cash
+        # 예수금 동기화 (급증 등 이상현상 방어)
+        if state['calculated_cash'] is None:
+            state['calculated_cash'] = api_cash
             final_cash = api_cash
-            print(f" [Init] 초기 예수금 설정: {final_cash:,}원")
         else:
-            diff = api_cash - self.my_calculated_cash
-            BUG_THRESHOLD = 30000000
+            diff = api_cash - state['calculated_cash']
+            BUG_THRESHOLD = 30000000  # 3천만원 이상 급증 시 오류로 간주
             if diff > BUG_THRESHOLD:
-                print(f" [Defense] 서버 예수금 급증 감지! (차이: {diff:,}원)")
-                final_cash = self.my_calculated_cash
+                print(f"     [Defense] 예수금 급증 감지 (차이: {diff:,}원) -> 내부 계산값 사용")
+                final_cash = state['calculated_cash']
             else:
                 if diff > 0:
-                    print(f"️ [Sync] 예수금 차이({diff:,}원) 발생 -> 동기화")
+                    # 입금 등으로 늘어난 경우 반영
+                    print(f"     [Sync] 예수금 변동 반영: +{diff:,}원")
                 final_cash = api_cash
-                self.my_calculated_cash = api_cash
+                state['calculated_cash'] = api_cash
 
+        # 4. 보유종목 구조화
         my_holdings_detail = {}
         for h in holdings_list:
             qty = int(h.get('quantity', 0))
             if qty > 0:
-                code = h['stockCode']
+                code = h.get('stockCode')
                 avg_price = float(h.get('avgPrice', 0))
-                my_holdings_detail[code] = {'qty': qty, 'avg_price': avg_price, 'current_price': 0, 'amt': 0}
+                my_holdings_detail[code] = {
+                    'qty': qty,
+                    'avg_price': avg_price,
+                    'current_price': 0,
+                    'amt': 0
+                }
 
-        print(f" 💰 가용예산(확정): {final_cash:,}원 | 보유종목: {len(my_holdings_detail)}개")
-
+        # 5. 분석 대상 유니버스 설정 (관심종목 + 보유종목)
         universe = set(self.target_codes) | set(my_holdings_detail.keys())
+
+        # 6. AI 종목 분석
         ai_results = []
         for code in universe:
             data = self.analyze_stock(code)
             if data:
+                # 보유종목이면 현재가 업데이트
                 if code in my_holdings_detail:
                     price = data['current_price']
                     my_holdings_detail[code]['current_price'] = price
@@ -488,12 +492,13 @@ class AIAutoTrader:
                 ai_results.append(data)
 
         if not ai_results:
-            print(" [Info] 분석 가능한 종목 데이터가 없습니다.")
+            print("     [Info] 분석 가능한 데이터가 없어 종료합니다.")
             return
 
-        high_scorers = [res for res in ai_results if res['ai_score'] >= 80]
-        expanded_codes = set()
+        # (옵션) 밸류체인 추가 분석
         if self.vc_strategy and self.vc_strategy.vc_analyzer:
+            high_scorers = [res for res in ai_results if res['ai_score'] >= 80]
+            expanded_codes = set()
             for item in high_scorers:
                 main_code = item['code']
                 related = self.vc_strategy.vc_analyzer.find_similar_stocks(main_code)
@@ -502,81 +507,106 @@ class AIAutoTrader:
                     if r_code not in universe and r_code not in expanded_codes:
                         expanded_codes.add(r_code)
 
-        if expanded_codes:
-            print(f"  [ValueChain] 연관 유망 종목 {len(expanded_codes)}개 추가 분석 진행...")
-            for r_code in expanded_codes:
-                data = self.analyze_stock(r_code)
-                if data:
-                    ai_results.append(data)
-                    print(f"    -> 밸류체인 추가: {r_code} ({data['ai_score']}점)")
+            if expanded_codes:
+                print(f"     [ValueChain] 추가 종목 분석: {len(expanded_codes)}개")
+                for r_code in expanded_codes:
+                    data = self.analyze_stock(r_code)
+                    if data:
+                        ai_results.append(data)
 
         ai_scores_df = pd.DataFrame(ai_results)
+
+        # 7. 총 자산 계산 (예수금 + 주식 평가금)
         total_stock_val = sum([h['amt'] for h in my_holdings_detail.values()])
         total_asset = final_cash + total_stock_val
+        print(f"     [Asset] 총 자산: {total_asset:,}원 (예수금: {final_cash:,}원)")
 
-        print(f" [Asset] 총 자산: {total_asset:,}원 (주식:{total_stock_val:,} + 예수금:{final_cash:,})")
-
+        # 8. 리밸런싱 계획 수립
         plan_df = self.rebalancer.run_ai_rebalancing(
-            my_holdings_detail,
-            ai_scores_df,
+            current_holdings_detail=my_holdings_detail,
+            ai_scores_df=ai_scores_df,
             total_budget=total_asset,
-            last_sell_times=self.last_sell_times,
-            last_buy_times=self.last_buy_times
+            last_sell_times=state['last_sell_times'],
+            last_buy_times=state['last_buy_times']
         )
 
         if plan_df.empty:
-            print(" [Plan] 매매할 건이 없습니다.")
             return
 
-        print("\n [리밸런싱 계획]")
-        print(plan_df[['code', 'name', 'ai_score', 'action', 'diff', 'profit_rate', 'reason']].to_string(index=False))
+        print(f"     [Plan] 매매 계획 {len(plan_df)}건 감지")
 
-        # 주문 실행
+        # 9. 주문 실행
         for _, row in plan_df.iterrows():
             action = row['action']
             if action == '유지': continue
 
             code = row['code']
-            name = row.get('name', code)
             price = 0
+
+            # 현재가 찾기
             found = [x for x in ai_results if x['code'] == code]
-            if found: price = found[0]['current_price']
-            if price == 0 and code in my_holdings_detail:
+            if found:
+                price = found[0]['current_price']
+            elif code in my_holdings_detail:
                 price = int(my_holdings_detail[code]['current_price'])
-            if price == 0:
-                print(f"       [{code}] 현재가를 알 수 없어 주문 생략")
+
+            if price <= 0:
+                print(f"       [Skip] {code} 현재가 확인 불가")
                 continue
 
             profit_rate = row.get('profit_rate', 0.0)
+            reason = row['reason']
 
+            # 매도 주문
             if action in ['비중축소', '전량매도']:
                 amt_to_sell = abs(row['diff'])
                 qty_to_sell = int(amt_to_sell // price)
                 if qty_to_sell > 0:
-                    if self.send_order(code, action, price, qty_to_sell, profit_rate, row['reason']):
-                        pass
+                    success = self.send_user_order(user_id, code, action, price, qty_to_sell, reason)
+                    if success:
+                        self.save_trade_log(user_id, code, action, qty_to_sell, price, profit_rate, reason)
+                        state['last_sell_times'][code] = datetime.now()
 
+            # 매수 주문
             elif action == '매수':
                 amt_to_buy = row['diff']
+                # 안전 마진 (예수금의 95%까지만 사용)
                 safe_cash = final_cash * 0.95
 
                 if amt_to_buy > safe_cash:
                     if safe_cash > 0:
-                        print(f"       ⚠️ 예산 조정: 목표({amt_to_buy:,}) > 가능({safe_cash:,.0f}) -> 가능 금액만큼만 주문")
                         amt_to_buy = safe_cash
                     else:
-                        print(f"       🚫 예수금 부족으로 매수 불가 ({code})")
+                        print(f"       🚫 예수금 부족 ({code})")
                         continue
 
                 qty_to_buy = int(amt_to_buy // price)
                 if qty_to_buy > 0:
-                    if self.send_order(code, action, price, qty_to_buy, profit_rate, row['reason']):
-                        used_cash = (qty_to_buy * price)
-                        final_cash -= used_cash
-                        self.my_calculated_cash -= used_cash
-                        print(f"     [Cash Update] 잔고 차감: -{used_cash:,}원 -> 남은예산: {self.my_calculated_cash:,}원")
+                    success = self.send_user_order(user_id, code, action, price, qty_to_buy, reason)
+                    if success:
+                        self.save_trade_log(user_id, code, action, qty_to_buy, price, profit_rate, reason)
+                        state['last_buy_times'][code] = datetime.now()
 
-        print(" [Cycle] 종료")
+                        # 예수금 차감 반영 (다음 종목 매수 위함)
+                        used_cash = qty_to_buy * price
+                        final_cash -= used_cash
+                        state['calculated_cash'] = final_cash
+
+    def run_cycle(self):
+        print(f"\n[Cycle] {datetime.now().strftime('%H:%M:%S')} 전체 사용자 자동매매 시작")
+
+        # 1. 활성 사용자 목록 조회
+        users = self.get_active_users()
+        print(f"[System] 활성 사용자 수: {len(users)}명")
+
+        # 2. 유저별 순차 처리
+        for user_id in users:
+            try:
+                self.process_user(user_id)
+            except Exception as e:
+                print(f" [Error] User {user_id} 처리 중 예외 발생: {e}")
+
+        print("[Cycle] 전체 사용자 처리 완료")
 
 
 if __name__ == "__main__":
@@ -584,6 +614,7 @@ if __name__ == "__main__":
     try:
         while True:
             trader.run_cycle()
+            # 1분(60초) 대기 후 다음 사이클
             time.sleep(60)
     except KeyboardInterrupt:
         print("\n [System] 자동매매 종료")
