@@ -2,6 +2,7 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
@@ -63,39 +64,47 @@ def run_prediction_pipeline(csv_path=None):
     # ------------------------------------------------------------------
     # 3. 피처 생성 및 예측
     # ------------------------------------------------------------------
-    predictions = []
-    print(f" [Data] OnlineFeatureStore를 통해 {len(target_codes)}개 종목 실시간 분석 중...")
+    print(f" [Data] OnlineFeatureStore를 통해 {len(target_codes)}개 종목 분석 중... (멀티스레드)")
 
-    # [주석 처리] 기존 일괄 처리 방식
-    # features_ret = engineer.create_final_features(use_cache=True)
-    # ...
-
-    # [New] 개별 종목 API 호출 및 예측 방식
-    for code in target_codes:
+    # [내부 함수] 개별 종목 처리 로직 (스레드에서 실행될 함수)
+    def predict_single_stock(code):
         try:
-            # 1) 실시간 피처 가져오기
+            # 1) 실시간 피처 가져오기 (Network I/O)
             features = store.get_realtime_features(code)
             
             if features is None or features.empty:
-                continue
+                return None
 
-            # 2) 모델 예측
+            # 2) 모델 예측 (CPU)
             probs = model.predict_proba(features)
             
-            # 차원 확인 (1차원 vs 2차원)
+            # 차원 확인
             if hasattr(probs, 'ndim') and probs.ndim == 2:
                 score = probs[0, 1] * 100
             else:
                 score = probs[1] * 100
             
-            predictions.append({
+            return {
                 'code': str(code).zfill(6),
                 'ai_score': round(score, 2)
-            })
-            
+            }
         except Exception as e:
-            # 에러 발생 시 해당 종목만 스킵
-            continue
+            # 개별 종목 에러는 로그만 찍고 넘어감
+            # print(f" [Warning] {code} 처리 실패: {e}")
+            return None
+
+    predictions = []
+
+    # [핵심 변경] ThreadPoolExecutor를 사용한 병렬 처리
+    # max_workers=10 : 동시에 10개씩 요청을 보냄 (API 제한에 따라 조절 가능)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # map을 사용하면 target_codes 순서대로 작업이 할당됨
+        results = executor.map(predict_single_stock, target_codes)
+        
+        # 결과 수집 (None이 아닌 것만)
+        for res in results:
+            if res is not None:
+                predictions.append(res)
 
     if not predictions:
         print(" [Warning] 예측 결과가 없습니다. (API 연결 상태나 장 운영시간 확인 필요)")
