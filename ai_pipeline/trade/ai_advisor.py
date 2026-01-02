@@ -351,32 +351,46 @@ class AIAdvisor:
                     continue
 
                 # 3-2. 데이터 파싱 (KisBalanceDTO 구조 -> my_holdings)
-                holdings_list = portfolio.get("holdings", [])
+                output1 = portfolio.get('output1', [])  # 보유종목 리스트
+                output2 = portfolio.get('output2', [])  # 예수금 리스트
 
-                # 예수금 파싱 (D+2 우선)
-                d2_cash = portfolio.get("depositReceived", 0)
-                total_cash_api = portfolio.get("totalDeposit", 0)
-
+                # 1) 숫자 변환 헬퍼 함수
                 def _parse(val):
-                    if isinstance(val, str): return int(val.replace(',', ''))
+                    if val is None: return 0
                     if isinstance(val, (int, float)): return int(val)
+                    if isinstance(val, str):
+                        val = val.replace(',', '').strip()
+                        if val == '': return 0
+                        return int(float(val))
                     return 0
 
-                cash = _parse(d2_cash) if _parse(d2_cash) > 0 else _parse(total_cash_api)
+                # 2) 예수금 파싱
+                d2_cash = 0
+                total_cash_api = 0
+                if output2:
+                    balance_info = output2[0]
+                    # prvs_rcdl_excc_amt: 가수금제외 D+2 예수금
+                    d2_cash = _parse(balance_info.get('prvs_rcdl_excc_amt', 0))
+                    total_cash_api = _parse(balance_info.get('dnca_tot_amt', 0))
+                
+                # 예수금이 있는 쪽을 선택 (D+2 우선)
+                cash = d2_cash if d2_cash > 0 else total_cash_api
 
+                # 3) 보유종목 파싱 (stockCode -> pdno, quantity -> hldg_qty)
                 my_holdings = {}
-                for h in holdings_list:
-                    qty = int(h.get("quantity", 0))
+                for h in output1:
+                    qty = _parse(h.get("hldg_qty", 0))  # 보유수량
                     if qty > 0:
-                        code = h.get("stockCode")
-                        avg_price = float(h.get("avgPrice", 0))
+                        code = h.get("pdno")            # 종목코드
+                        avg_price = float(h.get("pchs_avg_pric", 0)) # 매입평균가
+                        
                         my_holdings[code] = {
                             "qty": qty,
                             "avg_price": avg_price,
-                            "current_price": 0,  # AI 데이터로 업데이트 예정
+                            "current_price": 0, 
                             "amt": 0
                         }
-
+                        
                 # 3-3. 현재가 업데이트 (AI 분석 결과 활용)
                 ai_df_user = ai_df_global.copy()
                 for idx, row in ai_df_user.iterrows():
@@ -387,8 +401,11 @@ class AIAdvisor:
                         my_holdings[code]['amt'] = price * my_holdings[code]['qty']
 
                 # 3-4. 리밸런싱 전략 실행
-                total_asset = cash + sum(h["amt"] for h in my_holdings.values())
-
+                stock_assets = sum(h["amt"] for h in my_holdings.values())
+                total_asset = cash + stock_assets
+                
+                print(f"   [Check] User {user_id} 자산: {total_asset:,}원 (현금: {cash:,}원 / 주식: {stock_assets:,}원)")
+                
                 # 자산이 너무 적으면 패스 (예: 1만원 미만)
                 if total_asset < 10000:
                     continue
