@@ -360,12 +360,20 @@ class AIAutoTrader:
     def send_user_order(self, user_id, code, action, price, qty, reason):
         url = f"{BACKEND_API_URL}/trade/{user_id}"
         order_type = "BUY" if action == '매수' else "SELL"
+        
+        # [수정] numpy.int64 타입을 일반 int로 변환 (JSON 직렬화 오류 해결)
+        try:
+            qty = int(qty)
+            price = int(price)
+        except Exception:
+            pass
+        
         payload = {
             "stockCode": code,
             "orderType": order_type,
             "quantity": qty,
             "price": price,
-            "triggerSource": "AUTO_AI"
+            "triggerSource": "AI"
         }
         try:
             res = requests.post(url, headers=self.headers, json=payload, timeout=5)
@@ -384,8 +392,9 @@ class AIAutoTrader:
         단일 종목 AI 분석 (feature_store + model)
         """
         try:
-            df = self.store.load_feature_data(code)
-            if df.empty: return None
+            df = self.store.get_realtime_features(code)
+            if df is None or df.empty: 
+                return None
 
             # 예측 수행
             pred_score = self.model.predict(df)
@@ -400,7 +409,9 @@ class AIAutoTrader:
                 'current_price': current_price
             }
         except Exception as e:
-            # print(f" [Error] {code} 분석 실패: {e}")
+            print(f" [Error] {code} 분석 실패: {e}")  # 주석 해제!
+            import traceback
+            traceback.print_exc() # 상세 에러 위치 확인을 위해 추가 권장
             return None
 
     def process_user(self, user_id):
@@ -420,15 +431,26 @@ class AIAutoTrader:
 
         # 2. 잔고 조회
         balance_data = self.get_user_balance(user_id)
+        
         if not balance_data:
             print(f"     [Skip] 잔고 정보를 가져올 수 없어 건너뜁니다.")
             return
 
         # 3. 데이터 파싱
         # (API 응답 필드명에 따라 수정 필요: totalDeposit, depositReceived 등)
-        d2_cash = balance_data.get('depositReceived', 0)
-        total_cash = balance_data.get('totalDeposit', 0)
-        holdings_list = balance_data.get('holdings', [])
+        output1 = balance_data.get('output1', [])  # 보유 주식 리스트
+        output2 = balance_data.get('output2', [])  # 예수금/자산 정보 리스트
+
+        # 1. 예수금 추출
+        d2_cash = 0
+        total_cash = 0
+        
+        if output2:
+            balance_info = output2[0]
+            # prvs_rcdl_excc_amt: 가수금제외 D+2 예수금 (실제 주문 가능 금액에 가까움)
+            # dnca_tot_amt: 예수금 총액
+            d2_cash = balance_info.get('prvs_rcdl_excc_amt', 0)
+            total_cash = balance_info.get('dnca_tot_amt', 0)
 
         # 숫자 변환 헬퍼
         def _parse_amount(val, default=0):
@@ -442,37 +464,40 @@ class AIAutoTrader:
 
         d2_amt = _parse_amount(d2_cash)
         total_amt = _parse_amount(total_cash)
+        
         # 예수금 우선순위: D+2예수금 > 총예수금
         api_cash = d2_amt if (d2_amt is not None and d2_amt > 0) else total_amt
 
-        # 예수금 동기화 (급증 등 이상현상 방어)
+        # 예수금 동기화
         if state['calculated_cash'] is None:
             state['calculated_cash'] = api_cash
             final_cash = api_cash
         else:
             diff = api_cash - state['calculated_cash']
-            BUG_THRESHOLD = 30000000  # 3천만원 이상 급증 시 오류로 간주
+            BUG_THRESHOLD = 30000000 
             if diff > BUG_THRESHOLD:
                 print(f"     [Defense] 예수금 급증 감지 (차이: {diff:,}원) -> 내부 계산값 사용")
                 final_cash = state['calculated_cash']
             else:
                 if diff > 0:
-                    # 입금 등으로 늘어난 경우 반영
                     print(f"     [Sync] 예수금 변동 반영: +{diff:,}원")
                 final_cash = api_cash
                 state['calculated_cash'] = api_cash
 
-        # 4. 보유종목 구조화
+        # 2. 보유종목 구조화 (KIS API 키 매핑: pdno, hldg_qty, pchs_avg_pric)
         my_holdings_detail = {}
-        for h in holdings_list:
-            qty = int(h.get('quantity', 0))
+        for h in output1:
+            # pdno: 종목코드, hldg_qty: 보유수량, pchs_avg_pric: 매입평균가
+            qty = _parse_amount(h.get('hldg_qty', 0))
+            
             if qty > 0:
-                code = h.get('stockCode')
-                avg_price = float(h.get('avgPrice', 0))
+                code = h.get('pdno')
+                avg_price = float(h.get('pchs_avg_pric', 0))
+                
                 my_holdings_detail[code] = {
                     'qty': qty,
                     'avg_price': avg_price,
-                    'current_price': 0,
+                    'current_price': 0, # 이후 분석 단계에서 채워짐
                     'amt': 0
                 }
 
