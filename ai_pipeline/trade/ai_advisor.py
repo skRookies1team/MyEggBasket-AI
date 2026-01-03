@@ -24,7 +24,7 @@ if os.path.exists(env_path):
 BACKEND_API_URL = "http://localhost:8081/api/internal"
 AI_SECRET_KEY = os.getenv("AI_SECRET_KEY", "myeggbasketsecretkey00")  # .env에 설정된 키 사용
 
-ADVICE_LOG_PATH = os.path.join(current_dir, "ai_advice_history.csv")
+ADVICE_LOG_PATH = os.path.join(current_dir, "ai_advice_history1.csv")
 
 # -----------------------------------------------------------
 # 2. 모듈 Import
@@ -245,8 +245,8 @@ class AIAdvisor:
             url = f"{BACKEND_API_URL}/balance/{user_id}"
             res = requests.get(url, headers=self.headers, timeout=20)
             if res.status_code == 200:
-
-                return res.json()
+                data = res.json()
+                return data
             else:
                 # 잔고가 없거나 조회 실패 시 None
                 return None
@@ -351,8 +351,8 @@ class AIAdvisor:
                     continue
 
                 # 3-2. 데이터 파싱 (KisBalanceDTO 구조 -> my_holdings)
-                output1 = portfolio.get('output1', [])  # 보유종목 리스트
-                output2 = portfolio.get('output2', [])  # 예수금 리스트
+                output1 = portfolio.get('output1') or []  # 보유종목 리스트
+                output2 = portfolio.get('output2') or []  # 예수금 리스트
 
                 # 1) 숫자 변환 헬퍼 함수
                 def _parse(val):
