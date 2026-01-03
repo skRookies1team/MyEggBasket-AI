@@ -150,20 +150,48 @@ def send_trends_to_backend_logic():
 
 
 # -----------------------------------------------------------
+# [New] 자동 시작 트리거 함수
+# -----------------------------------------------------------
+def trigger_advisor_start():
+    """
+    서버 구동 후(약 3초 대기) 스스로에게 POST 요청을 보내
+    AI 어드바이저를 시작시킵니다.
+    """
+    time.sleep(3)  # 서버 실행 대기
+    try:
+        print(" >> [Auto-Trigger] Advisor 자동 시작 요청 전송 중...")
+        # 로컬 서버의 API 호출
+        url = "http://localhost:8001/bot/advisor/start"
+        response = requests.post(url, timeout=5)
+        if response.status_code == 200:
+            print(f" >> [Auto-Trigger] 성공: {response.json()}")
+        else:
+            print(f" >> [Auto-Trigger] 실패 (Status {response.status_code}): {response.text}")
+    except Exception as e:
+        print(f" >> [Auto-Trigger] 연결 실패: {e}")
+
+
+# -----------------------------------------------------------
 # API Endpoints
 # -----------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app):
     """
-    Lifespan handler: 서버 시작 시 트렌드 분석을 백엔드로 전송하는 작업을 비동기 백그라운드 스레드로 시작합니다.
+    Lifespan handler: 서버 시작 시 트렌드 분석 및 어드바이저 자동 시작
     """
-    print(" >> [Auto-Start] 서버 시작과 동시에 뉴스 트렌드 분석 및 전송 작업을 시작합니다.")
+    print(" >> [Auto-Start] 서버 시작 작업 수행 중...")
+
+    # 1. 뉴스 트렌드 분석 및 전송 (백그라운드 스레드)
     threading.Thread(target=send_trends_to_backend_logic, daemon=True).start()
+
+    # 2. AI 어드바이저 자동 시작 트리거 (백그라운드 스레드)
+    threading.Thread(target=trigger_advisor_start, daemon=True).start()
+
     try:
         yield
     finally:
-        # 필요한 종료 정리 작업이 있다면 여기에 추가
         pass
+
 
 app = FastAPI(
     title="AI Trading Controller",
@@ -171,6 +199,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
 
 @app.get("/status")
 def get_status():
@@ -196,10 +225,12 @@ def control_advisor(action: str):
     else:
         raise HTTPException(status_code=400, detail="start/stop only")
 
+
 @app.post("/pipeline/train")
 async def run_training(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_pipeline_with_rebalancing)
     return {"msg": "AI 학습 및 예측 파이프라인이 백그라운드에서 시작되었습니다."}
+
 
 # [수정됨] 백엔드 API 사용하도록 변경
 @app.post("/pipeline/sync/trends")
@@ -210,6 +241,7 @@ async def trigger_trend_sync(background_tasks: BackgroundTasks):
     """
     background_tasks.add_task(send_trends_to_backend_logic)
     return {"msg": "뉴스 트렌드 분석 및 백엔드 동기화 작업이 시작되었습니다."}
+
 
 # -----------------------------------------------------------
 # 서버 실행
