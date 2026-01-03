@@ -91,6 +91,7 @@ class PortfolioRebalancer:
         # 파라미터 설정 (기존 유지)
         BUY_SCORE_THRESHOLD = 86
         SELL_SCORE_THRESHOLD = 50
+        MIN_ALLOCATION_SCORE = 10
         PROFIT_TAKE_RATE = 10.5
         STOP_LOSS_RATE = -10.2
         THRESHOLD_RATIO = 0.01
@@ -103,7 +104,10 @@ class PortfolioRebalancer:
         if candidates.empty:
             return pd.DataFrame()
 
-        candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= SELL_SCORE_THRESHOLD else 0)
+        # 절대 기준(50점) 대신, 최소 점수만 넘으면 상대 비중을 계산하도록 변경
+        candidates['calc_score'] = candidates['ai_score'].apply(lambda x: x if x >= MIN_ALLOCATION_SCORE else 0)
+
+        # 점수 차이를 더 벌리기 위해 제곱 사용 (높은 점수에 더 많은 비중)
         candidates['weight_score'] = np.power(candidates['calc_score'], 2)
         total_weight_score = candidates['weight_score'].sum()
 
@@ -205,7 +209,7 @@ class AIAdvisor:
         self.store = OnlineFeatureStore()
         self.model = StackingEnsemble()
         self.rebalancer = PortfolioRebalancer()
-        self.headers = {"X-AI-SECRET": AI_SECRET_KEY}  # [변경] Secret Key 헤더 사용
+        self.headers = {"X-AI-SECRET": AI_SECRET_KEY}
 
         model_path = os.path.join(project_root, "ai_pipeline/boosting_model/models")
         try:
@@ -231,7 +235,7 @@ class AIAdvisor:
             url = f"{BACKEND_API_URL}/users"
             res = requests.get(url, headers=self.headers, timeout=20)
             if res.status_code == 200:
-                return res.json()  # [1, 2, 5, ...]
+                return res.json()
             else:
                 print(f"[Advisor] 유저 목록 조회 실패: {res.status_code}")
                 return []
@@ -245,8 +249,7 @@ class AIAdvisor:
             url = f"{BACKEND_API_URL}/balance/{user_id}"
             res = requests.get(url, headers=self.headers, timeout=20)
             if res.status_code == 200:
-                data = res.json()
-                return data
+                return res.json()
             else:
                 # 잔고가 없거나 조회 실패 시 None
                 return None
@@ -256,32 +259,32 @@ class AIAdvisor:
 
     # [변경] 내부 API로 조언 전송
     def send_advice_to_server(self, user_id, row):
-        """
-        AI 리밸런싱 결과 1건을 백엔드 내부 API로 전송
-        """
-        url = f"{BACKEND_API_URL}/ai/recommendation"
+        # [수정] InternalAiController에 새로 만든 API 경로로 변경
+        url = f"{BACKEND_API_URL}/recommendation"  # 예: http://localhost:8081/api/internal/recommendation
 
         action_map = {
-            "매수": "BUY",
-            "추가 매수": "BUY",
-            "강력매수": "BUY",
-            "매수고려": "BUY",
-            "비중축소": "SELL",
-            "전량매도": "SELL",
-            "손절매": "SELL",
-            "익절": "SELL",
+            "매수": "BUY", "추가 매수": "BUY", "강력매수": "BUY", "매수고려": "BUY",
+            "비중축소": "SELL", "전량매도": "SELL", "손절매": "SELL", "익절": "SELL",
             "유지": "HOLD"
         }
-
         action_enum = action_map.get(row["action"], "HOLD")
 
-        # 내부용 API Payload (InternalRecommendationRequest 구조에 맞춤)
+        risk_warning = ""
+        if row["ai_score"] < 40: risk_warning = "AI Score Low"
+        if "손절매" in row["reason"]: risk_warning = "Stop Loss Warning"
+
+        # [수정] 백엔드 DTO (RecommendationCreateRequest) 필드명과 타입 일치시키기
         payload = {
-            "userId": user_id,
+            "userId": int(user_id),
             "stockCode": str(row["code"]),
-            "type": action_enum,  # BUY, SELL, HOLD
-            "reason": f"{row['reason']} (변동: {int(row['diff']):,}원)",  # 금액 정보 보존을 위해 reason에 추가
-            "score": float(row["ai_score"])
+            "aiScore": float(row["ai_score"]), # Float 타입
+            "actionType": action_enum,
+            "currentHolding": int(row["current_amt"]),
+            "targetHolding": int(row["target_amt"]),
+            "targetHoldingPercentage": float(row["target_ratio"] * 100), # 백엔드는 % 단위(0~100)를 기대할 수 있음
+            "adjustmentAmount": int(row["diff"]),
+            "reasonSummary": row["reason"],
+            "riskWarning": risk_warning
         }
 
         try:
@@ -350,9 +353,8 @@ class AIAdvisor:
                 if not portfolio:
                     continue
 
-                # 3-2. 데이터 파싱 (KisBalanceDTO 구조 -> my_holdings)
-                output1 = portfolio.get('output1') or []  # 보유종목 리스트
-                output2 = portfolio.get('output2') or []  # 예수금 리스트
+                output1 = portfolio.get('output1') or []
+                output2 = portfolio.get('output2') or []
 
                 # 1) 숫자 변환 헬퍼 함수
                 def _parse(val):
@@ -372,26 +374,25 @@ class AIAdvisor:
                     # prvs_rcdl_excc_amt: 가수금제외 D+2 예수금
                     d2_cash = _parse(balance_info.get('prvs_rcdl_excc_amt', 0))
                     total_cash_api = _parse(balance_info.get('dnca_tot_amt', 0))
-                
-                # 예수금이 있는 쪽을 선택 (D+2 우선)
+
                 cash = d2_cash if d2_cash > 0 else total_cash_api
 
-                # 3) 보유종목 파싱 (stockCode -> pdno, quantity -> hldg_qty)
+                # 3) 보유종목 파싱
                 my_holdings = {}
                 for h in output1:
-                    qty = _parse(h.get("hldg_qty", 0))  # 보유수량
+                    qty = _parse(h.get("hldg_qty", 0))
                     if qty > 0:
-                        code = h.get("pdno")            # 종목코드
-                        avg_price = float(h.get("pchs_avg_pric", 0)) # 매입평균가
-                        
+                        code = h.get("pdno")
+                        avg_price = float(h.get("pchs_avg_pric", 0))
+
                         my_holdings[code] = {
                             "qty": qty,
                             "avg_price": avg_price,
-                            "current_price": 0, 
+                            "current_price": 0,
                             "amt": 0
                         }
-                        
-                # 3-3. 현재가 업데이트 (AI 분석 결과 활용)
+
+                # 3-3. 현재가 업데이트
                 ai_df_user = ai_df_global.copy()
                 for idx, row in ai_df_user.iterrows():
                     code = row['code']
@@ -403,10 +404,9 @@ class AIAdvisor:
                 # 3-4. 리밸런싱 전략 실행
                 stock_assets = sum(h["amt"] for h in my_holdings.values())
                 total_asset = cash + stock_assets
-                
+
                 print(f"   [Check] User {user_id} 자산: {total_asset:,}원 (현금: {cash:,}원 / 주식: {stock_assets:,}원)")
-                
-                # 자산이 너무 적으면 패스 (예: 1만원 미만)
+
                 if total_asset < 10000:
                     continue
 
@@ -425,9 +425,6 @@ class AIAdvisor:
         print("[System] 전체 사용자 처리 완료. 5분 대기...\n")
 
 
-# -----------------------------------------------------------
-# 5. 자동 실행
-# -----------------------------------------------------------
 if __name__ == "__main__":
     advisor = AIAdvisor()
     while True:
