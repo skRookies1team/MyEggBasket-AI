@@ -23,7 +23,7 @@ if os.path.exists(env_path):
 # [설정 변경] Secret Key 사용
 AI_SECRET_KEY = os.getenv("AI_SECRET_KEY", "myeggbasketsecretkey00")
 BACKEND_API_URL = "http://localhost:8081/api/internal"  # 내부 API 주소
-LOG_FILE_PATH = os.path.join(current_dir, "trade_record.csv")
+LOG_FILE_PATH = os.path.join(current_dir, "trade_record1.csv")
 
 # -----------------------------------------------------------
 # 2. 모듈 Import
@@ -336,7 +336,8 @@ class AIAutoTrader:
             url = f"{BACKEND_API_URL}/users"
             res = requests.get(url, headers=self.headers, timeout=5)
             if res.status_code == 200:
-                return res.json()  # List of user IDs
+                data = res.json()
+                return data
             else:
                 print(f"[System] 유저 목록 조회 실패: {res.status_code}")
                 return []
@@ -438,8 +439,8 @@ class AIAutoTrader:
 
         # 3. 데이터 파싱
         # (API 응답 필드명에 따라 수정 필요: totalDeposit, depositReceived 등)
-        output1 = balance_data.get('output1', [])  # 보유 주식 리스트
-        output2 = balance_data.get('output2', [])  # 예수금/자산 정보 리스트
+        output1 = balance_data.get('output1') or []  # 보유 주식 리스트
+        output2 = balance_data.get('output2') or []  # 예수금/자산 정보 리스트
 
         # 1. 예수금 추출
         d2_cash = 0
