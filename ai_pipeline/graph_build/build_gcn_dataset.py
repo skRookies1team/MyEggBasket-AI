@@ -5,6 +5,7 @@ import torch
 import pandas as pd
 import numpy as np
 from elasticsearch import Elasticsearch
+from ai_pipeline.config.settings import ES_HOST
 from torch_geometric.data import Data
 
 # 경로 설정

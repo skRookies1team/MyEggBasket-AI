@@ -3,9 +3,22 @@ import os
 import time
 import pandas as pd
 import numpy as np
+import requests  # [추가] API 요청용
+from dotenv import load_dotenv  # [추가] 환경변수 로드용
 
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+
+# 환경 변수 로드
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+env_path = os.path.join(project_root, ".env")
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+
+# 설정 값 가져오기
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8081/api/app")
+TEST_EMAIL = os.getenv("TEST_EMAIL", "testuser@example.com")
+TEST_PASSWORD = os.getenv("TEST_PASSWORD", "password1234")
 
 # 모듈 가져오기
 from ai_pipeline.news_source.news_etl_runner import run_finance_news_etl
@@ -15,8 +28,67 @@ from ai_pipeline.portfolio.rebalancer import PortfolioRebalancer
 from ai_pipeline.strategy.value_chain_strategy import ValueChainStrategy
 
 
-# [New] GCN Inference 모듈 (필요시 주석 해제하여 사용)
-# from ai_pipeline.gcn_model.inference_gcn import GCNInference
+# [Helper] 로그인 및 포트폴리오 조회 함수
+def fetch_my_account_portfolio():
+    """
+    백엔드 API를 통해 실제 계좌의 보유 종목 및 평가 금액을 조회합니다.
+    Returns: { '종목코드': 평가금액(int), ... }
+    """
+    print(" [API] 백엔드 로그인 시도 중...")
+    try:
+        # 1. 로그인
+        login_res = requests.post(
+            f"{BACKEND_API_URL}/auth/login",
+            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+            timeout=5
+        )
+
+        if login_res.status_code != 200:
+            print(f" [Error] 로그인 실패: {login_res.status_code} {login_res.text}")
+            return {}
+
+        token = login_res.json().get("accessToken")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 2. 잔고 조회 (실전/모의 여부는 쿼리 파라미터로 조정 가능, 여기선 false/true 확인 필요)
+        # ai_advisor.py는 virtual=true를, run_realtime_trade.py는 virtual=false를 사용 중입니다.
+        # 필요에 따라 'true' 또는 'false'로 변경하세요.
+        balance_res = requests.get(
+            f"{BACKEND_API_URL}/kis/trade/balance",
+            headers=headers,
+            params={"virtual": "true"},
+            timeout=5
+        )
+
+        if balance_res.status_code != 200:
+            print(f" [Error] 잔고 조회 실패: {balance_res.status_code} {balance_res.text}")
+            return {}
+
+        data = balance_res.json()
+        holdings = data.get("holdings", [])
+
+        portfolio = {}
+        print(f" [API] 보유 종목 {len(holdings)}개 조회 성공")
+
+        for h in holdings:
+            qty = int(h.get("quantity", 0))
+            if qty > 0:
+                code = h.get("stockCode")
+                # 현재가(currentPrice)가 있으면 사용하고, 없으면 평단가(avgPrice) 사용
+                try:
+                    price = float(h.get("currentPrice") or h.get("avgPrice", 0))
+                except:
+                    price = 0
+
+                amount = int(qty * price)
+                portfolio[code] = amount
+
+        return portfolio
+
+    except Exception as e:
+        print(f" [Error] API 연동 중 예외 발생: {e}")
+        return {}
+
 
 def run_pipeline_with_rebalancing():
     print("\n" + "=" * 60)
@@ -24,29 +96,29 @@ def run_pipeline_with_rebalancing():
     print("=" * 60)
 
     # ---------------------------------------------------------
-    # [Step 1] 내 계좌 보유 현황 (API 연동 가정)
+    # [Step 1] 내 계좌 보유 현황 (API 연동 적용)
     # ---------------------------------------------------------
-    my_portfolio = {
-        '000660': 5000000,
-        '009830': 2000000,
-        '047050': 15000000,
-        '051900': 8000000,
-        '005930': 12000000,
-    }
+    my_portfolio = fetch_my_account_portfolio()
+
+    # API 연동 실패 시 빈 딕셔너리일 수 있음 -> 예외 처리 혹은 빈 상태로 진행
+    if not my_portfolio:
+        print(" [Warning] 보유 종목이 없거나 조회에 실패했습니다. (빈 포트폴리오로 진행)")
 
     held_codes = [str(c).strip().zfill(6) for c in my_portfolio.keys()]
+    # 포트폴리오 키 포맷팅 (005930 등 6자리 문자열 보장)
     my_portfolio = {str(k).strip().zfill(6): v for k, v in my_portfolio.items()}
 
     print(f" [Step 1] 현재 보유 종목: {len(held_codes)}개")
+    if held_codes:
+        print(f"          {held_codes}")
 
     # ---------------------------------------------------------
     # [Step 2] AI 모델 전체 종목 예측
     # ---------------------------------------------------------
 
     # [Step 1~2] 데이터 수집 및 그래프 생성 (필요시 주석 해제하여 실행)
-    run_finance_news_etl()
-    build_graph_structure()
-    # (주의: GCN 학습은 시간이 오래 걸리므로 여기서는 생략하고 기존 모델 사용 가정)
+    # run_finance_news_etl()
+    # build_graph_structure()
 
     print("\n [Step 2] AI 모델 예측 실행 (전체 종목)")
     prediction_df = run_prediction_pipeline()  # 전체 시장 예측
@@ -57,7 +129,7 @@ def run_pipeline_with_rebalancing():
 
     prediction_df['code'] = prediction_df['code'].astype(str).str.strip().str.zfill(6)
 
-    #보유종목과 관계없는 단순 ai 점수 높은 종목 5개 출력
+    # 보유종목과 관계없는 단순 ai 점수 높은 종목 5개 출력
     print("\n" + "-" * 50)
     print(" [전체 종목 AI 예측 Score Top 5]")
     print("-" * 50)
@@ -72,8 +144,7 @@ def run_pipeline_with_rebalancing():
 
     vc_strategy = ValueChainStrategy()
 
-    # 1. 전략 분석 실행 (여기서 한 번만 실행!)
-    #    -> AI 점수가 높은 대장주(Main)와 연관된 저평가 알짜주(Target)를 찾습니다.
+    # 1. 전략 분석 실행
     rec_df = vc_strategy.analyze_predictions(prediction_df)
 
     recommended_codes = []
@@ -85,7 +156,6 @@ def run_pipeline_with_rebalancing():
         print("\n [밸류체인 추천 Top 5]")
         for idx, row in rec_df.head(5).iterrows():
             print(f"  [{idx + 1}] {row['Rationale']}")
-            # print(f"       (대장주: {row['Main_Stock']} -> 수혜주: {row['Target_Stock']})")
 
         # 전체 결과 파일 저장
         rec_save_path = os.path.join(os.path.dirname(__file__), "value_chain_recommendations.csv")
@@ -93,20 +163,16 @@ def run_pipeline_with_rebalancing():
         print(f"\n    * 상세 리포트 저장 완료: {rec_save_path}")
 
         # 3. 리밸런싱용 코드 추출 (Target_Code)
-        #    상위 5개(또는 전체) 종목만 포트폴리오 편입 후보로 선정
-        # 신규 매수 후보군 (Target Code) 추출
         recommended_codes = rec_df['Target_Code'].unique().tolist()
         recommended_codes = [str(c).strip().zfill(6) for c in recommended_codes]
 
     else:
         print(" -> 밸류체인 조건(대장주 급등 & 연관주 동반 상승)에 부합하는 종목이 없습니다.")
 
-
     # ---------------------------------------------------------
     # [Step 4] 최종 포트폴리오 유니버스 구성
     # ---------------------------------------------------------
     # 유니버스 = (내 보유 종목) + (밸류체인 추천 종목)
-    # * 잡주는 제외되고, 검증된 종목만 리밸런싱 대상이 됨
     final_universe_codes = list(set(held_codes + recommended_codes))
 
     print(f"\n [Step 4] 최종 리밸런싱 대상 확정: 총 {len(final_universe_codes)}개")
@@ -115,7 +181,8 @@ def run_pipeline_with_rebalancing():
 
     # 예측 결과에서 유니버스에 해당하는 데이터만 추출
     target_prediction_df = prediction_df[prediction_df['code'].isin(final_universe_codes)].copy()
-    # 혹시 보유종목 중 예측 결과에 없는 종목(데이터 부족 등)이 있다면 점수 0으로라도 추가해줘야 함
+
+    # 보유종목 중 예측 데이터가 없는 경우 처리
     existing_in_pred = target_prediction_df['code'].tolist()
     missing_codes = [c for c in held_codes if c not in existing_in_pred]
 
@@ -140,7 +207,9 @@ def run_pipeline_with_rebalancing():
         print("-" * 80)
         # 출력 포맷 정리
         display_cols = ['code', 'ai_score', 'action', 'diff', 'target_ratio']
-        print(plan_df[display_cols].to_string(index=False))
+        # 컬럼 존재 여부 확인 후 출력
+        valid_cols = [c for c in display_cols if c in plan_df.columns]
+        print(plan_df[valid_cols].to_string(index=False))
 
         # 파일 저장
         save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "final_order_plan.csv")

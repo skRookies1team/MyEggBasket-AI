@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime, timedelta
 
-from news_etl_runner import TrendKeywordExtractor
+from ai_pipeline.news_source.news_etl_runner import TrendKeywordExtractor
 
 # 프로젝트 루트 경로
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
