@@ -16,7 +16,7 @@ if os.path.exists(env_path):
     load_dotenv(env_path)
 
 # 설정 값 가져오기
-BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8080/api/app")
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8081/api/app")
 TEST_EMAIL = os.getenv("TEST_EMAIL", "testuser@example.com")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "password1234")
 
